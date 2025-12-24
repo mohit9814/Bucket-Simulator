@@ -18,6 +18,7 @@ import { cn } from "@/lib/utils";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { ArrowLeft, Settings2, BarChart3, Table as TableIcon, FileText } from "lucide-react";
 import { Button } from "@/components/ui/button";
+import { ScenarioComparisonChart } from "@/components/features/ScenarioComparisonChart";
 
 export default function Home() {
   const [result, setResult] = useState<SimulationResult | null>(null);
@@ -175,25 +176,17 @@ export default function Home() {
                       startAge={currentParams?.startAge}
                       title="Wealth Projection - Median Scenario (Typical)"
                     />
-                    {result.historyWorst && (
-                      <SimulationChart
-                        history={result.historyWorst}
-                        startAge={currentParams?.startAge}
-                        title="Wealth Projection - Worst Scenario (10th Percentile)"
-                      />
-                    )}
-                    {result.historyBest && (
-                      <SimulationChart
-                        history={result.historyBest}
-                        startAge={currentParams?.startAge}
-                        title="Wealth Projection - Best Scenario (90th Percentile)"
-                      />
-                    )}
+
+                    {/* New Comparative Chart */}
+                    <ScenarioComparisonChart
+                      result={result}
+                      startAge={currentParams?.startAge || 0}
+                    />
                   </>
                 )}
               </div>
               <div className="lg:col-span-1">
-                <ReplenishmentLog history={displayedHistory} />
+                <ReplenishmentLog history={displayedHistory} startAge={currentParams?.startAge} />
               </div>
             </div>
           </TabsContent>
@@ -201,14 +194,18 @@ export default function Home() {
           <TabsContent value="details" className="animate-in fade-in duration-300">
             {result && (
               <div className="h-full">
-                <YearlyTable history={result.history} currentMonth={currentMonth} />
+                <YearlyTable
+                  history={result.history}
+                  currentMonth={currentMonth}
+                  startAge={currentParams?.startAge}
+                />
               </div>
             )}
           </TabsContent>
 
           <TabsContent value="log" className="animate-in fade-in duration-300">
             <div className="max-w-4xl mx-auto">
-              <ReplenishmentLog history={displayedHistory} />
+              <ReplenishmentLog history={displayedHistory} startAge={currentParams?.startAge} />
             </div>
           </TabsContent>
         </Tabs>

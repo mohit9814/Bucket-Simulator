@@ -8,9 +8,10 @@ import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, Legend, Responsive
 
 interface ReplenishmentLogProps {
     history: MonthSimulation[];
+    startAge?: number;
 }
 
-export function ReplenishmentLog({ history }: ReplenishmentLogProps) {
+export function ReplenishmentLog({ history, startAge }: ReplenishmentLogProps) {
     if (!history || history.length === 0) return null;
 
     // 1. Process Data
@@ -46,11 +47,13 @@ export function ReplenishmentLog({ history }: ReplenishmentLogProps) {
         totalFromConservative += d.skimToB1;
         if (d.skimToB1 > 0 || d.skimToB2 > 0) yearsWithActivity++;
 
+        const label = startAge ? `Age ${startAge + d.year}` : `Yr ${d.year + 1}`;
         return {
-            name: `Yr ${d.year + 1}`,
+            name: label,
             "From Growth (B3)": Math.round(d.skimToB2),
             "From Conservative (B2)": Math.round(d.skimToB1),
-            yearRaw: d.year
+            yearRaw: d.year,
+            age: startAge ? startAge + d.year : undefined
         };
     });
 
@@ -59,9 +62,11 @@ export function ReplenishmentLog({ history }: ReplenishmentLogProps) {
     // Custom Tooltip for Chart
     const CustomTooltip = ({ active, payload, label }: any) => {
         if (active && payload && payload.length) {
+            const data = payload[0].payload;
+            const subLabel = startAge ? `(Year ${data.yearRaw + 1})` : '';
             return (
                 <div className="bg-white/95 border border-slate-200 p-3 rounded-lg shadow-lg text-xs">
-                    <p className="font-bold mb-2">{label}</p>
+                    <p className="font-bold mb-2">{label} {subLabel}</p>
                     {payload.map((entry: any, index: number) => (
                         entry.value > 0 && (
                             <div key={index} className="flex items-center gap-2 mb-1">
@@ -159,8 +164,8 @@ export function ReplenishmentLog({ history }: ReplenishmentLogProps) {
                             <Card key={event.year} className="border bg-card/50 hover:bg-card transition-colors">
                                 <CardHeader className="p-3 pb-2 border-b bg-muted/20">
                                     <div className="flex justify-between items-center">
-                                        <CardTitle className="text-sm font-semibold">Year {event.year + 1}</CardTitle>
-                                        <span className="text-[10px] text-muted-foreground font-mono">Age {50 + event.year}</span>
+                                        <CardTitle className="text-sm font-semibold">{startAge ? `Age ${startAge + event.year}` : `Year ${event.year + 1}`}</CardTitle>
+                                        <span className="text-[10px] text-muted-foreground font-mono">{startAge ? `Year ${event.year + 1}` : ''}</span>
                                     </div>
                                 </CardHeader>
                                 <CardContent className="p-3 space-y-2">

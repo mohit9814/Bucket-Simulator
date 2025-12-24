@@ -14,12 +14,14 @@ interface ReportData {
         inflation: number;
         isr: number;
         bucketAllocations: [number, number, number];
+        startAge?: number;
     };
 }
 
 export const ExportService = {
     downloadCSV: (data: ReportData) => {
         const { result, params } = data;
+        const startAge = params.startAge;
 
         // 1. Summary Sheet
         const summary = [
@@ -51,9 +53,12 @@ export const ExportService = {
             const pctB2 = startB2 > 0 ? (row.returnAmountB2 / startB2) * 100 : 0;
             const pctB3 = startB3 > 0 ? (row.returnAmountB3 / startB3) * 100 : 0;
 
+            const year = Math.floor((row.month - 1) / 12) + 1;
+
             return {
                 Month: row.month,
-                Year: Math.floor((row.month - 1) / 12) + 1,
+                Age: startAge ? startAge + year - 1 : '-',
+                Year: year,
                 "B1 Bal": row.bucket1,
                 "B1 Ret (Amt)": row.returnAmountB1,
                 "B1 Ret (%)": `${pctB1.toFixed(2)}%`,
@@ -91,6 +96,7 @@ export const ExportService = {
 
     downloadPDF: (data: ReportData) => {
         const { result, params } = data;
+        const startAge = params.startAge;
         const doc = new jsPDF();
 
         // Header
@@ -148,20 +154,12 @@ export const ExportService = {
             .filter((_, i) => i % 12 === 0) // Yearly only
             .slice(0, 20)
             .map(row => {
-                // Calculate annual withdrawals for display? 
-                // Currently this row is just the monthly snapshot at start of year (i % 12 === 0).
-                // The user probably wants "Widthdrawn this Year".
-                // But row is just a snapshot. 
-                // For PDF, simple snapshot is okay for balances, but withdrawals needs accumulation or showing that month's?
-                // Showing just one month's withdrawal is misleading.
-                // Let's stick to showing balances in PDF to avoid confusion, or try to accumulate.
-                // Accumulating in map is hard.
-                // I will add columns but with caveats or just show the snapshot withdrawal (monthly).
-                // User asked for "amount withdrawn from each bucket".
-                // I'll show the withdrawal for that *month* or maybe it's better to show balances.
-                // Let's add "Withdrawn (Mo)" columns.
+                const yearIndex = Math.floor(row.month / 12);
+                const ageVal = startAge ? startAge + yearIndex : '-';
+
                 return [
-                    Math.floor(row.month / 12),
+                    ageVal,
+                    yearIndex + 1, // Year 1, 2, ...
                     formatINR(row.bucket1),
                     formatINR(row.bucket2),
                     formatINR(row.bucket3),
@@ -171,7 +169,7 @@ export const ExportService = {
 
         autoTable(doc, {
             startY: historyY + 5,
-            head: [['Year', 'B1 Bal', 'B2 Bal', 'B3 Bal', 'Withdrawn (Mo)']],
+            head: [['Age', 'Year', 'B1 Bal', 'B2 Bal', 'B3 Bal', 'Withdrawn (Mo)']],
             body: historyRows,
             theme: 'striped',
             styles: { fontSize: 8 }, // Reduce font size to fit

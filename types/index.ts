@@ -75,4 +75,6 @@ export interface SimulationResult {
   totalSimulations: number;
   historyWorst?: MonthSimulation[]; // 10th percentile
   historyBest?: MonthSimulation[]; // 90th percentile
+  historyP25?: MonthSimulation[]; // 25th percentile
+  historyP75?: MonthSimulation[]; // 75th percentile
 }

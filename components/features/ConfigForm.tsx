@@ -35,8 +35,8 @@ interface ConfigFormProps {
 }
 
 export function ConfigForm({ onRunSimulation }: ConfigFormProps) {
-    const [expense, setExpense] = useState<number>(50000);
-    const [mode, setMode] = useState<FireMode>("Chubby");
+    const [expense, setExpense] = useState<number>(100000);
+    const [mode, setMode] = useState<FireMode>("Custom");
     const [currentAge, setCurrentAge] = useState<number>(44);
     const [retirementAge, setRetirementAge] = useState<number>(44);
     const [lifeExpectancy, setLifeExpectancy] = useState<number>(85);
@@ -44,16 +44,16 @@ export function ConfigForm({ onRunSimulation }: ConfigFormProps) {
     const [numSimulations, setNumSimulations] = useState<number>(1000);
 
     // Advanced / Custom Params
-    const [isr, setIsr] = useState<number>(24);
-    const [bucketAllocations, setBucketAllocations] = useState<[number, number, number]>([0.3333, 0.3333, 0.3334]);
+    const [isr, setIsr] = useState<number>(40);
+    const [bucketAllocations, setBucketAllocations] = useState<[number, number, number]>([0.15, 0.50, 0.35]);
     const [bucketOverrides, setBucketOverrides] = useState<{ [key: number]: { returnRate: number, volatility: number } } | undefined>(undefined);
 
     const [showOptimizer, setShowOptimizer] = useState(false);
     const [taxEnabled, setTaxEnabled] = useState<boolean>(true);
-    const [isJoint, setIsJoint] = useState<boolean>(false);
+    const [isJoint, setIsJoint] = useState<boolean>(true);
     const [annualRebalancing, setAnnualRebalancing] = useState<boolean>(false);
     const [strategyType, setStrategyType] = useState<StrategyType>('three-bucket');
-    const [equityFreezeYears, setEquityFreezeYears] = useState<number>(0);
+    const [equityFreezeYears, setEquityFreezeYears] = useState<number>(10);
 
     const [requiredCorpus, setRequiredCorpus] = useState<number>(0);
 
@@ -180,7 +180,7 @@ export function ConfigForm({ onRunSimulation }: ConfigFormProps) {
                             <span className="text-[10px] text-muted-foreground">(Click to Edit)</span>
                         </div>
                         <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
-                            {BUCKETS.filter((_, idx) => bucketAllocations[idx] > 0 || strategyType === 'dynamic-aggressive').map((bucket) => {
+                            {BUCKETS.filter((_, idx) => bucketAllocations[idx] > 0).map((bucket) => {
                                 const override = bucketOverrides?.[bucket.id];
                                 const effectiveRate = override?.returnRate ?? bucket.returnRate;
                                 const effectiveVol = override?.volatility ?? bucket.volatility;
@@ -273,72 +273,16 @@ export function ConfigForm({ onRunSimulation }: ConfigFormProps) {
 
                     {/* Strategy Type & Freeze */}
                     <div className="space-y-4 border p-4 rounded-lg bg-slate-50 dark:bg-slate-900 border-dashed">
-                        <div className="space-y-2">
-                            <div className="flex items-center justify-between">
-                                <Label className="flex items-center gap-2">
-                                    {strategyType === 'three-bucket' ? <Layers className="w-4 h-4" /> : <LayoutTemplate className="w-4 h-4" />}
-                                    Strategy Type
-                                </Label>
-                            </div>
-                            <div className="flex gap-2 bg-slate-200 dark:bg-slate-800 p-1 rounded-md overflow-x-auto">
-                                <button
-                                    type="button"
-                                    onClick={() => {
-                                        setStrategyType('three-bucket');
-                                        setBucketAllocations([0.3333, 0.3333, 0.3334]);
-                                    }}
-                                    className={cn(
-                                        "px-2 py-1 text-xs rounded-sm transition-all whitespace-nowrap",
-                                        strategyType === 'three-bucket' ? "bg-white dark:bg-slate-600 shadow-sm font-semibold" : "text-muted-foreground hover:bg-white/50"
-                                    )}
-                                >
-                                    3-Bucket
-                                </button>
-                                <button
-                                    type="button"
-                                    onClick={() => {
-                                        setStrategyType('two-bucket');
-                                        setBucketAllocations([0.2, 0.8, 0.0]);
-                                    }}
-                                    className={cn(
-                                        "px-2 py-1 text-xs rounded-sm transition-all whitespace-nowrap",
-                                        strategyType === 'two-bucket' ? "bg-white dark:bg-slate-600 shadow-sm font-semibold" : "text-muted-foreground hover:bg-white/50"
-                                    )}
-                                >
-                                    2-Bucket
-                                </button>
-                                <button
-                                    type="button"
-                                    onClick={() => {
-                                        setStrategyType('dynamic-aggressive');
-                                        // Allocations will be overridden by simulation, but set reasonable defaults for UI
-                                        setBucketAllocations([0.15, 0.25, 0.60]);
-                                    }}
-                                    className={cn(
-                                        "px-2 py-1 text-xs rounded-sm transition-all whitespace-nowrap",
-                                        strategyType === 'dynamic-aggressive' ? "bg-white dark:bg-slate-600 shadow-sm font-semibold text-indigo-600" : "text-muted-foreground hover:bg-white/50"
-                                    )}
-                                >
-                                    Dynamic Aggressive
-                                </button>
-                            </div>
-                            <p className="text-[0.8rem] text-muted-foreground mt-1">
-                                {strategyType === 'three-bucket'
-                                    ? "Standard model with Cash, Debt/Conservative, and Equity buckets."
-                                    : strategyType === 'two-bucket'
-                                        ? "Simplified model with Liquid Cash and Growth Equity only."
-                                        : "Maintains 4 years in B1, 6 years in B2, rest in Equity. Rebalances annually."}
-                            </p>
-                        </div>
+                        {/* Strategy Type Selection Removed - Defaulting to 3-Bucket */}
 
-                        <div className="grid gap-1.5 leading-none pt-2 border-t border-dashed">
+                        <div className="grid gap-1.5 leading-none">
                             <div className="flex items-center justify-between">
                                 <Label htmlFor="equityFreeze" className="text-xs font-medium">Freeze Equity Withdrawals (Years)</Label>
                                 <Input
                                     id="equityFreeze"
                                     type="number"
                                     min={0}
-                                    max={10}
+                                    max={30}
                                     value={equityFreezeYears}
                                     onChange={(e) => setEquityFreezeYears(Number(e.target.value))}
                                     className="h-7 w-16 text-right"
@@ -470,11 +414,7 @@ export function ConfigForm({ onRunSimulation }: ConfigFormProps) {
                                         onChange={(e) => {
                                             const val = Number(e.target.value) / 100;
                                             const rem = 1 - val;
-                                            if (strategyType === 'three-bucket') {
-                                                setBucketAllocations([val, rem / 2, rem / 2]);
-                                            } else {
-                                                setBucketAllocations([val, rem, 0]);
-                                            }
+                                            setBucketAllocations([val, rem / 2, rem / 2]);
                                             setMode('Custom');
                                         }}
                                     />
@@ -483,7 +423,7 @@ export function ConfigForm({ onRunSimulation }: ConfigFormProps) {
                             </div>
                             <div className="space-y-1">
                                 <Label className="text-xs text-muted-foreground">
-                                    {strategyType === 'three-bucket' ? 'Bucket 2 (Conservative)' : 'Bucket 2 (Growth)'}
+                                    Bucket 2 (Conservative)
                                 </Label>
                                 <div className="flex items-center gap-1">
                                     <Input
@@ -493,41 +433,34 @@ export function ConfigForm({ onRunSimulation }: ConfigFormProps) {
                                         value={Math.round(bucketAllocations[1] * 10000) / 100}
                                         onChange={(e) => {
                                             const val = Number(e.target.value) / 100;
-                                            if (strategyType === 'three-bucket') {
-                                                const b1 = bucketAllocations[0];
-                                                const b3 = 1 - b1 - val;
-                                                setBucketAllocations([b1, val, b3]);
-                                            } else {
-                                                const rem = 1 - val;
-                                                setBucketAllocations([rem, val, 0]);
-                                            }
+                                            const b1 = bucketAllocations[0];
+                                            const b3 = 1 - b1 - val;
+                                            setBucketAllocations([b1, val, b3]);
                                             setMode('Custom');
                                         }}
                                     />
                                     <span className="text-xs text-muted-foreground">%</span>
                                 </div>
                             </div>
-                            {strategyType === 'three-bucket' && (
-                                <div className="space-y-1">
-                                    <Label className="text-xs text-muted-foreground">Bucket 3 (Growth)</Label>
-                                    <div className="flex items-center gap-1">
-                                        <Input
-                                            type="number"
-                                            step="0.01"
-                                            className="h-8 font-mono text-center"
-                                            value={Math.round(bucketAllocations[2] * 10000) / 100}
-                                            onChange={(e) => {
-                                                const val = Number(e.target.value) / 100;
-                                                const b1 = bucketAllocations[0];
-                                                const b2 = 1 - b1 - val;
-                                                setBucketAllocations([b1, b2, val]);
-                                                setMode('Custom');
-                                            }}
-                                        />
-                                        <span className="text-xs text-muted-foreground">%</span>
-                                    </div>
+                            <div className="space-y-1">
+                                <Label className="text-xs text-muted-foreground">Bucket 3 (Growth)</Label>
+                                <div className="flex items-center gap-1">
+                                    <Input
+                                        type="number"
+                                        step="0.01"
+                                        className="h-8 font-mono text-center"
+                                        value={Math.round(bucketAllocations[2] * 10000) / 100}
+                                        onChange={(e) => {
+                                            const val = Number(e.target.value) / 100;
+                                            const b1 = bucketAllocations[0];
+                                            const b2 = 1 - b1 - val;
+                                            setBucketAllocations([b1, b2, val]);
+                                            setMode('Custom');
+                                        }}
+                                    />
+                                    <span className="text-xs text-muted-foreground">%</span>
                                 </div>
-                            )}
+                            </div>
                         </div>
 
                         {mode === 'Custom' && bucketOverrides && (

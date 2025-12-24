@@ -9,15 +9,21 @@ import { Download, Table as TableIcon, ArrowRight, ArrowLeft, ArrowDown, Info } 
 interface YearlyTableProps {
     history: MonthSimulation[];
     currentMonth: number;
+    startAge?: number;
 }
 
-export function YearlyTable({ history, currentMonth }: YearlyTableProps) {
+export function YearlyTable({ history, currentMonth, startAge }: YearlyTableProps) {
     if (!history || history.length === 0) return null;
 
     // Filter history up to currentMonth
     const visibleHistory = history.slice(0, currentMonth);
 
     const yearlyData = visibleHistory.reduce((acc, monthSim) => {
+        // ... (keep existing reduce logic verbatim, but skipping re-paste to save tokens if possible? No, I must replace contiguous block)
+        // Actually, reducing logic is fine, I just need to update usage of it.
+        // Wait, I need to replace the interface and the CSV handler.
+        // I will replace the top part including interface and CSV handler.
+
         // Year 0 based on index 0-11
         const year = Math.floor((monthSim.month - 1) / 12);
 
@@ -103,10 +109,11 @@ export function YearlyTable({ history, currentMonth }: YearlyTableProps) {
 
     // Download CSV Handler
     const handleDownload = () => {
-        const headers = ["Year", "B1 Bal", "B1 Ret", "B1 Out", "B2 Bal", "B2 Ret", "B2 Out", "B3 Bal", "B3 Ret", "B3 Out", "Tax Paid"];
+        const headers = ["Age", "Year", "B1 Bal", "B1 Ret", "B1 Out", "B2 Bal", "B2 Ret", "B2 Out", "B3 Bal", "B3 Ret", "B3 Out", "Tax Paid"];
         const csvContent = [
             headers.join(","),
             ...rows.map(r => [
+                startAge ? startAge + r.year : '-',
                 r.year + 1,
                 r.endB1.toFixed(2),
                 r.returnAmountB1.toFixed(2),
@@ -187,6 +194,7 @@ export function YearlyTable({ history, currentMonth }: YearlyTableProps) {
                     <table className="w-full text-xs text-left border-collapse table-fixed">
                         <colgroup>
                             <col className="w-10" />
+                            <col className="w-8" />
                             <col className="w-[12%]" />
                             <col className="w-[11%]" />
                             <col className="w-[8%]" />
@@ -200,7 +208,8 @@ export function YearlyTable({ history, currentMonth }: YearlyTableProps) {
                         </colgroup>
                         <thead className="sticky top-0 bg-secondary/90 backdrop-blur z-10 text-muted-foreground font-semibold">
                             <tr>
-                                <th className="p-1 pl-2 sticky left-0 bg-secondary/90 z-20" title="Simulation Year">Yr</th>
+                                <th className="p-1 pl-2 sticky left-0 bg-secondary/90 z-20" title="Age">Age</th>
+                                <th className="p-1 sticky left-[40px] bg-secondary/90 z-20 border-r border-border/50" title="Simulation Year">Yr</th>
 
                                 <th className="p-1 text-right border-l border-border/50" title="Bucket 1 Ending Balance">B1 Bal</th>
                                 <th className="p-1 text-right" title="Return Amount (+/-)">Ret</th>
@@ -232,7 +241,10 @@ export function YearlyTable({ history, currentMonth }: YearlyTableProps) {
 
                                 return (
                                     <tr key={row.year} className="hover:bg-muted/30 group transition-colors odd:bg-background even:bg-secondary/10">
-                                        <td className="p-1 pl-2 font-medium sticky left-0 bg-background group-hover:bg-muted/30 transition-colors border-r border-border/50">
+                                        <td className="p-1 pl-2 font-medium sticky left-0 bg-background group-hover:bg-muted/30 transition-colors">
+                                            {startAge ? startAge + row.year : '-'}
+                                        </td>
+                                        <td className="p-1 font-medium sticky left-[40px] bg-background group-hover:bg-muted/30 transition-colors border-r border-border/50">
                                             {row.year + 1}
                                         </td>
 

@@ -420,10 +420,14 @@ export function runSimulation({
     // If median is failed but success rate is high, this might be interesting.
     // Usually median is representative.
     const worstIndex = Math.floor(numSimulations * 0.10);
+    const p25Index = Math.floor(numSimulations * 0.25);
+    const p75Index = Math.floor(numSimulations * 0.75);
     const bestIndex = Math.min(Math.floor(numSimulations * 0.90), numSimulations - 1);
 
     const representativeTrace = allResults[medianIndex];
     const worstTrace = allResults[worstIndex];
+    const p25Trace = allResults[p25Index];
+    const p75Trace = allResults[p75Index];
     const bestTrace = allResults[bestIndex];
 
     // Calculate aggregate success rate
@@ -432,6 +436,8 @@ export function runSimulation({
     return {
         ...representativeTrace, // The history/finalAmount of the median run
         historyWorst: worstTrace.history,
+        historyP25: p25Trace.history,
+        historyP75: p75Trace.history,
         historyBest: bestTrace.history,
         successRate: successRate, // The aggregate success rate
         totalSimulations: numSimulations
