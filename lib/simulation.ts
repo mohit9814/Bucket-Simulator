@@ -22,7 +22,8 @@ function runSingleSimulation(params: SimulationParams & { inflationRate?: number
         taxEnabled = false,
         isJoint = false,
         annualRebalancing = false,
-        strategyType = 'three-bucket'
+        strategyType = 'three-bucket',
+        equityFreezeYears = 0
     } = params;
 
     const months = years * 12;
@@ -81,6 +82,8 @@ function runSingleSimulation(params: SimulationParams & { inflationRate?: number
             // New Year Start
             currentMonthlyExpense = currentMonthlyExpense * (1 + inflationRate / 100);
         }
+        const currentYear = Math.ceil(m / 12);
+        const isFrozen = currentYear <= equityFreezeYears;
 
         let taxPaidThisMonth = 0;
         let ruleLog: string[] = [];
@@ -103,7 +106,7 @@ function runSingleSimulation(params: SimulationParams & { inflationRate?: number
             }
         }
 
-        if (b2 < 3 * currentAnnualExpense) {
+        if (b2 < 3 * currentAnnualExpense && !isFrozen) {
             ruleLog.push(`B2 Low (<3yr Exp)`);
             const needed = currentAnnualExpense;
             const available = b3;
@@ -214,7 +217,7 @@ function runSingleSimulation(params: SimulationParams & { inflationRate?: number
             yearlyWithdrawalB3 = 0;
 
             // Annual Rebalancing
-            if (annualRebalancing || strategyType === 'dynamic-aggressive') {
+            if ((annualRebalancing || strategyType === 'dynamic-aggressive') && !isFrozen) {
                 const currentTotal = b1 + b2 + b3;
                 if (currentTotal > 0) {
                     if (strategyType === 'dynamic-aggressive') {
@@ -304,8 +307,15 @@ function runSingleSimulation(params: SimulationParams & { inflationRate?: number
         };
 
         const b3Config = getBucketConfig(3);
-        const [newB3, pushFrom3, profitB3] = processBucket(b3, b3Config.returnRate, b3Config.volatility);
-        b3 = newB3;
+        const [newB3, pushFrom3Init, profitB3] = processBucket(b3, b3Config.returnRate, b3Config.volatility);
+        let pushFrom3 = pushFrom3Init;
+        if (isFrozen) {
+            // Refund skim if frozen
+            pushFrom3 = 0;
+            b3 = newB3 + pushFrom3Init;
+        } else {
+            b3 = newB3;
+        }
 
         b2 += pushFrom3; // Add push
 
@@ -377,7 +387,8 @@ export function runSimulation({
     taxEnabled,
     isJoint,
     annualRebalancing,
-    strategyType
+    strategyType,
+    equityFreezeYears
 }: SimulationParams & { inflationRate?: number, numSimulations?: number }): SimulationResult {
     const allResults: SimulationResult[] = [];
     let successCount = 0;
@@ -394,7 +405,8 @@ export function runSimulation({
             taxEnabled,
             isJoint,
             annualRebalancing,
-            strategyType
+            strategyType,
+            equityFreezeYears
         });
         if (result.isSuccess) successCount++;
         allResults.push(result);
@@ -407,13 +419,20 @@ export function runSimulation({
     const medianIndex = Math.floor(numSimulations / 2);
     // If median is failed but success rate is high, this might be interesting.
     // Usually median is representative.
+    const worstIndex = Math.floor(numSimulations * 0.10);
+    const bestIndex = Math.min(Math.floor(numSimulations * 0.90), numSimulations - 1);
+
     const representativeTrace = allResults[medianIndex];
+    const worstTrace = allResults[worstIndex];
+    const bestTrace = allResults[bestIndex];
 
     // Calculate aggregate success rate
     const successRate = (successCount / numSimulations) * 100;
 
     return {
         ...representativeTrace, // The history/finalAmount of the median run
+        historyWorst: worstTrace.history,
+        historyBest: bestTrace.history,
         successRate: successRate, // The aggregate success rate
         totalSimulations: numSimulations
     };

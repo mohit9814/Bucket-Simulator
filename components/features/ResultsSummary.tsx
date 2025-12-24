@@ -5,6 +5,8 @@ import { SimulationResult } from "@/types";
 import { AlertTriangle, CheckCircle, TrendingUp, FileText, FileSpreadsheet } from "lucide-react";
 import { formatINR } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
+import { Info } from "lucide-react";
+import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
 
 interface ResultsSummaryProps {
     result: SimulationResult;
@@ -30,9 +32,24 @@ export function ResultsSummary({ result, onExport, onAnalyze }: ResultsSummaryPr
                     <div className="text-2xl font-bold">
                         {successRate}%
                     </div>
-                    <p className="text-xs text-muted-foreground mt-1">
-                        Based on {result.totalSimulations || 1} simulations
-                    </p>
+                    <div className="flex items-center gap-1 mt-1">
+                        <p className="text-xs text-muted-foreground">
+                            Based on {result.totalSimulations || 1} simulations
+                        </p>
+                        <TooltipProvider>
+                            <Tooltip>
+                                <TooltipTrigger>
+                                    <Info className="w-3 h-3 text-muted-foreground/50" />
+                                </TooltipTrigger>
+                                <TooltipContent className="max-w-[300px]">
+                                    <p className="text-xs">
+                                        Percentage of {result.totalSimulations || 1} random market scenarios where your money lasted the full duration.
+                                        Even if the chart shows success (Median), some unlucky scenarios might fail.
+                                    </p>
+                                </TooltipContent>
+                            </Tooltip>
+                        </TooltipProvider>
+                    </div>
                 </CardContent>
             </Card>
 
@@ -57,9 +74,24 @@ export function ResultsSummary({ result, onExport, onAnalyze }: ResultsSummaryPr
                 </CardHeader>
                 <CardContent>
                     <div className="text-2xl font-bold">{formatINR(result.finalAmount)}</div>
-                    <p className="text-xs text-muted-foreground mt-1">
-                        Remaining simulated value
-                    </p>
+                    <div className="flex items-center gap-1 mt-1">
+                        <p className="text-xs text-muted-foreground">
+                            Projected value (Median Scenario)
+                        </p>
+                        <TooltipProvider>
+                            <Tooltip>
+                                <TooltipTrigger>
+                                    <Info className="w-3 h-3 text-muted-foreground/50" />
+                                </TooltipTrigger>
+                                <TooltipContent className="max-w-[300px]">
+                                    <p className="text-xs">
+                                        The final portfolio value in the "Median" (typical) outcome.
+                                        50% of scenarios ended with more, 50% with less.
+                                    </p>
+                                </TooltipContent>
+                            </Tooltip>
+                        </TooltipProvider>
+                    </div>
                 </CardContent>
             </Card>
 

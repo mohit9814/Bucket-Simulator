@@ -11,7 +11,8 @@ import { Calculator, Play, Sparkles, Settings2, LayoutTemplate, Layers } from "l
 import { useEffect, useState } from "react";
 import { cn, formatINR } from "@/lib/utils";
 import { OptimizerResults } from "./OptimizerResults";
-import { Dialog, DialogContent, DialogTrigger } from "@/components/ui/dialog";
+import { Dialog, DialogContent, DialogTrigger, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
+import { BUCKETS } from "@/lib/constants";
 
 interface ConfigFormProps {
     onRunSimulation: (
@@ -27,7 +28,9 @@ interface ConfigFormProps {
         isJoint: boolean,
         annualRebalancing: boolean,
         strategyType: StrategyType,
-        bucketConfigOverride?: { [key: number]: { returnRate: number, volatility: number } }
+
+        bucketConfigOverride?: { [key: number]: { returnRate: number, volatility: number } },
+        equityFreezeYears?: number
     ) => void;
 }
 
@@ -50,6 +53,7 @@ export function ConfigForm({ onRunSimulation }: ConfigFormProps) {
     const [isJoint, setIsJoint] = useState<boolean>(false);
     const [annualRebalancing, setAnnualRebalancing] = useState<boolean>(false);
     const [strategyType, setStrategyType] = useState<StrategyType>('three-bucket');
+    const [equityFreezeYears, setEquityFreezeYears] = useState<number>(0);
 
     const [requiredCorpus, setRequiredCorpus] = useState<number>(0);
 
@@ -64,10 +68,38 @@ export function ConfigForm({ onRunSimulation }: ConfigFormProps) {
         setRequiredCorpus(calculateRequiredFunds(expense, isr));
     }, [expense, isr]);
 
+    // Bucket Override Logic
+    const [editingBucketId, setEditingBucketId] = useState<number | null>(null);
+    const [tempOverride, setTempOverride] = useState({ returnRate: 0, volatility: 0 });
+
+    const handleBucketClick = (bucketId: number) => {
+        const defaultBucket = BUCKETS.find(b => b.id === bucketId);
+        if (!defaultBucket) return;
+
+        const currentOverride = bucketOverrides?.[bucketId];
+        setTempOverride({
+            returnRate: (currentOverride?.returnRate ?? defaultBucket.returnRate) * 100,
+            volatility: (currentOverride?.volatility ?? defaultBucket.volatility) * 100
+        });
+        setEditingBucketId(bucketId);
+    };
+
+    const handleSaveOverride = () => {
+        if (editingBucketId === null) return;
+        setBucketOverrides(prev => ({
+            ...prev,
+            [editingBucketId]: {
+                returnRate: tempOverride.returnRate / 100,
+                volatility: tempOverride.volatility / 100
+            }
+        }));
+        setEditingBucketId(null);
+    };
+
     const handleSubmit = (e: React.FormEvent) => {
         e.preventDefault();
         const duration = lifeExpectancy - retirementAge;
-        onRunSimulation(expense, mode, duration, inflation, numSimulations, isr, bucketAllocations, retirementAge, taxEnabled, isJoint, annualRebalancing, strategyType, bucketOverrides);
+        onRunSimulation(expense, mode, duration, inflation, numSimulations, isr, bucketAllocations, retirementAge, taxEnabled, isJoint, annualRebalancing, strategyType, bucketOverrides, equityFreezeYears);
     };
 
     const handleApplyStrategy = (
@@ -75,13 +107,16 @@ export function ConfigForm({ onRunSimulation }: ConfigFormProps) {
         newAllocation: [number, number, number],
         updatedParams?: { expense: number, inflation: number, years: number },
         overrides?: { [key: number]: { returnRate: number, volatility: number } },
-        newStrategyType?: StrategyType
+        newStrategyType?: StrategyType,
+
+        newEquityFreezeYears?: number
     ) => {
         // Update Form State
         setMode('Custom');
         setIsr(newIsr);
         setBucketAllocations(newAllocation);
         if (newStrategyType) setStrategyType(newStrategyType);
+        if (newEquityFreezeYears !== undefined) setEquityFreezeYears(newEquityFreezeYears);
         if (overrides) {
             setBucketOverrides(overrides);
         }
@@ -118,7 +153,9 @@ export function ConfigForm({ onRunSimulation }: ConfigFormProps) {
             isJoint,
             annualRebalancing,
             newStrategyType || strategyType,
-            overrides || bucketOverrides
+
+            overrides || bucketOverrides,
+            newEquityFreezeYears !== undefined ? newEquityFreezeYears : equityFreezeYears
         );
     };
 
@@ -133,6 +170,54 @@ export function ConfigForm({ onRunSimulation }: ConfigFormProps) {
             </CardHeader>
             <CardContent>
                 <form onSubmit={handleSubmit} className="space-y-6">
+                    {/* Strategy Overview - Interactive */}
+                    <div className="space-y-2">
+                        <div className="flex items-center justify-between">
+                            <Label className="flex items-center gap-2 text-primary font-semibold">
+                                <Settings2 className="w-4 h-4" />
+                                Strategy Overview
+                            </Label>
+                            <span className="text-[10px] text-muted-foreground">(Click to Edit)</span>
+                        </div>
+                        <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
+                            {BUCKETS.filter((_, idx) => bucketAllocations[idx] > 0 || strategyType === 'dynamic-aggressive').map((bucket) => {
+                                const override = bucketOverrides?.[bucket.id];
+                                const effectiveRate = override?.returnRate ?? bucket.returnRate;
+                                const effectiveVol = override?.volatility ?? bucket.volatility;
+                                const isModified = !!override;
+
+                                return (
+                                    <div
+                                        key={bucket.id}
+                                        onClick={() => handleBucketClick(bucket.id)}
+                                        className={cn(
+                                            "relative p-4 rounded-xl border bg-card text-card-foreground shadow-sm hover:shadow-md transition-all cursor-pointer hover:border-primary/50 group",
+                                            isModified && "border-indigo-500/50 bg-indigo-50/10"
+                                        )}
+                                    >
+                                        <div className="text-center space-y-1">
+                                            <div className={cn(
+                                                "text-2xl font-bold",
+                                                bucket.id === 1 ? "text-emerald-600" : bucket.id === 2 ? "text-amber-600" : "text-indigo-600"
+                                            )}>
+                                                {(effectiveRate * 100).toFixed(1)}%
+                                            </div>
+                                            <div className="text-[10px] uppercase font-bold tracking-wider text-muted-foreground group-hover:text-primary transition-colors">
+                                                {bucket.name}
+                                            </div>
+                                            <div className="text-[10px] text-muted-foreground opacity-70">
+                                                Vol: {(effectiveVol * 100).toFixed(1)}%
+                                            </div>
+                                        </div>
+                                        {isModified && (
+                                            <div className="absolute top-1 right-1 w-2 h-2 rounded-full bg-indigo-500" />
+                                        )}
+                                    </div>
+                                );
+                            })}
+                        </div>
+                    </div>
+
                     <div className="grid grid-cols-2 gap-4">
                         <div className="space-y-2">
                             <Label htmlFor="currentAge">Current Age</Label>
@@ -186,36 +271,83 @@ export function ConfigForm({ onRunSimulation }: ConfigFormProps) {
                         </div>
                     </div>
 
-                    <div className="space-y-2">
-                        <div className="flex justify-between items-center">
-                            <Label htmlFor="inflation">Inflation Rate (%)</Label>
-                            <Dialog open={showOptimizer} onOpenChange={setShowOptimizer}>
-                                <DialogTrigger asChild>
-                                    <Button variant="ghost" size="sm" className="h-6 text-xs text-indigo-600 hover:text-indigo-700">
-                                        <Sparkles className="w-3 h-3 mr-1" />
-                                        Optimize
-                                    </Button>
-                                </DialogTrigger>
-                                <DialogContent className="w-screen h-screen max-w-none rounded-none border-0 flex flex-col justify-center overflow-y-auto bg-background/95 backdrop-blur-xl">
-                                    <OptimizerResults
-                                        monthlyExpense={expense}
-                                        inflationRate={inflation}
-                                        years={lifeExpectancy - retirementAge}
-                                        strategyType={strategyType}
-                                        onApplyStrategy={handleApplyStrategy}
-                                    />
-                                </DialogContent>
-                            </Dialog>
+                    {/* Strategy Type & Freeze */}
+                    <div className="space-y-4 border p-4 rounded-lg bg-slate-50 dark:bg-slate-900 border-dashed">
+                        <div className="space-y-2">
+                            <div className="flex items-center justify-between">
+                                <Label className="flex items-center gap-2">
+                                    {strategyType === 'three-bucket' ? <Layers className="w-4 h-4" /> : <LayoutTemplate className="w-4 h-4" />}
+                                    Strategy Type
+                                </Label>
+                            </div>
+                            <div className="flex gap-2 bg-slate-200 dark:bg-slate-800 p-1 rounded-md overflow-x-auto">
+                                <button
+                                    type="button"
+                                    onClick={() => {
+                                        setStrategyType('three-bucket');
+                                        setBucketAllocations([0.3333, 0.3333, 0.3334]);
+                                    }}
+                                    className={cn(
+                                        "px-2 py-1 text-xs rounded-sm transition-all whitespace-nowrap",
+                                        strategyType === 'three-bucket' ? "bg-white dark:bg-slate-600 shadow-sm font-semibold" : "text-muted-foreground hover:bg-white/50"
+                                    )}
+                                >
+                                    3-Bucket
+                                </button>
+                                <button
+                                    type="button"
+                                    onClick={() => {
+                                        setStrategyType('two-bucket');
+                                        setBucketAllocations([0.2, 0.8, 0.0]);
+                                    }}
+                                    className={cn(
+                                        "px-2 py-1 text-xs rounded-sm transition-all whitespace-nowrap",
+                                        strategyType === 'two-bucket' ? "bg-white dark:bg-slate-600 shadow-sm font-semibold" : "text-muted-foreground hover:bg-white/50"
+                                    )}
+                                >
+                                    2-Bucket
+                                </button>
+                                <button
+                                    type="button"
+                                    onClick={() => {
+                                        setStrategyType('dynamic-aggressive');
+                                        // Allocations will be overridden by simulation, but set reasonable defaults for UI
+                                        setBucketAllocations([0.15, 0.25, 0.60]);
+                                    }}
+                                    className={cn(
+                                        "px-2 py-1 text-xs rounded-sm transition-all whitespace-nowrap",
+                                        strategyType === 'dynamic-aggressive' ? "bg-white dark:bg-slate-600 shadow-sm font-semibold text-indigo-600" : "text-muted-foreground hover:bg-white/50"
+                                    )}
+                                >
+                                    Dynamic Aggressive
+                                </button>
+                            </div>
+                            <p className="text-[0.8rem] text-muted-foreground mt-1">
+                                {strategyType === 'three-bucket'
+                                    ? "Standard model with Cash, Debt/Conservative, and Equity buckets."
+                                    : strategyType === 'two-bucket'
+                                        ? "Simplified model with Liquid Cash and Growth Equity only."
+                                        : "Maintains 4 years in B1, 6 years in B2, rest in Equity. Rebalances annually."}
+                            </p>
                         </div>
-                        <Input
-                            id="inflation"
-                            type="number"
-                            min={0}
-                            max={20}
-                            step={0.1}
-                            value={inflation}
-                            onChange={(e) => setInflation(Number(e.target.value))}
-                        />
+
+                        <div className="grid gap-1.5 leading-none pt-2 border-t border-dashed">
+                            <div className="flex items-center justify-between">
+                                <Label htmlFor="equityFreeze" className="text-xs font-medium">Freeze Equity Withdrawals (Years)</Label>
+                                <Input
+                                    id="equityFreeze"
+                                    type="number"
+                                    min={0}
+                                    max={10}
+                                    value={equityFreezeYears}
+                                    onChange={(e) => setEquityFreezeYears(Number(e.target.value))}
+                                    className="h-7 w-16 text-right"
+                                />
+                            </div>
+                            <p className="text-[0.8rem] text-muted-foreground">
+                                Prevent transfers from Growth Bucket for the first X years (Sequence of Return Risk mitigation).
+                            </p>
+                        </div>
                     </div>
 
                     <div className="flex flex-col space-y-2">
@@ -285,99 +417,41 @@ export function ConfigForm({ onRunSimulation }: ConfigFormProps) {
                         </div>
                     </div>
 
-                    <div className="flex items-center space-x-2 border p-3 rounded-lg bg-slate-50 dark:bg-slate-900 border-dashed">
-                        <div className="grid gap-1.5 leading-none w-full">
-                            <div className="flex items-center justify-between">
-                                <Label className="flex items-center gap-2">
-                                    {strategyType === 'three-bucket' ? <Layers className="w-4 h-4" /> : <LayoutTemplate className="w-4 h-4" />}
-                                    Strategy Type
-                                </Label>
-                            </div>
-                            <div className="flex gap-2 bg-slate-200 dark:bg-slate-800 p-1 rounded-md overflow-x-auto">
-                                <button
-                                    type="button"
-                                    onClick={() => {
-                                        setStrategyType('three-bucket');
-                                        setBucketAllocations([0.3333, 0.3333, 0.3334]);
-                                    }}
-                                    className={cn(
-                                        "px-2 py-1 text-xs rounded-sm transition-all whitespace-nowrap",
-                                        strategyType === 'three-bucket' ? "bg-white dark:bg-slate-600 shadow-sm font-semibold" : "text-muted-foreground hover:bg-white/50"
-                                    )}
-                                >
-                                    3-Bucket
-                                </button>
-                                <button
-                                    type="button"
-                                    onClick={() => {
-                                        setStrategyType('two-bucket');
-                                        setBucketAllocations([0.2, 0.8, 0.0]);
-                                    }}
-                                    className={cn(
-                                        "px-2 py-1 text-xs rounded-sm transition-all whitespace-nowrap",
-                                        strategyType === 'two-bucket' ? "bg-white dark:bg-slate-600 shadow-sm font-semibold" : "text-muted-foreground hover:bg-white/50"
-                                    )}
-                                >
-                                    2-Bucket
-                                </button>
-                                <button
-                                    type="button"
-                                    onClick={() => {
-                                        setStrategyType('dynamic-aggressive');
-                                        // Allocations will be overridden by simulation, but set reasonable defaults for UI
-                                        setBucketAllocations([0.15, 0.25, 0.60]);
-                                    }}
-                                    className={cn(
-                                        "px-2 py-1 text-xs rounded-sm transition-all whitespace-nowrap",
-                                        strategyType === 'dynamic-aggressive' ? "bg-white dark:bg-slate-600 shadow-sm font-semibold text-indigo-600" : "text-muted-foreground hover:bg-white/50"
-                                    )}
-                                >
-                                    Dynamic Aggressive
-                                </button>
-                            </div>
-                            <p className="text-[0.8rem] text-muted-foreground mt-1">
-                                {strategyType === 'three-bucket'
-                                    ? "Standard model with Cash, Debt/Conservative, and Equity buckets."
-                                    : strategyType === 'two-bucket'
-                                        ? "Simplified model with Liquid Cash and Growth Equity only."
-                                        : "Maintains 4 years in B1, 6 years in B2, rest in Equity. Rebalances annually."}
-                            </p>
-                        </div>
-                    </div>
+
 
                     <div className="space-y-2">
                         <div className="flex justify-between">
                             <Label>FIRE Mode</Label>
-                            <Label>FIRE Mode / ISR (Years)</Label>
-                            <div className="w-20">
-                                <Input
-                                    type="number"
-                                    className="h-6 text-xs"
-                                    value={isr}
-                                    onChange={(e) => {
-                                        const val = Number(e.target.value);
-                                        setIsr(val);
-                                        setMode('Custom');
-                                    }}
-                                />
-                            </div>
                         </div>
 
-                        <div className="grid grid-cols-3 gap-2">
-                            {(Object.keys(FIRE_MODES) as FireMode[]).filter(m => m !== 'Custom').map((m) => {
+                        <div className="grid grid-cols-2 md:grid-cols-4 gap-2">
+                            {(Object.keys(FIRE_MODES) as FireMode[]).map((m) => {
                                 const config = FIRE_MODES[m];
                                 const isSelected = mode === m;
+                                const isCustom = m === 'Custom';
                                 return (
                                     <div
                                         key={m}
                                         onClick={() => setMode(m)}
                                         className={cn(
-                                            "cursor-pointer rounded-lg border p-3 transition-all hover:bg-accent",
+                                            "cursor-pointer rounded-lg border p-3 transition-all hover:bg-accent relative",
                                             isSelected ? "border-primary bg-primary/5 ring-1 ring-primary" : "bg-card"
                                         )}
                                     >
                                         <div className="text-sm font-semibold">{config.label}</div>
-                                        <div className="text-xs text-muted-foreground mt-1">{config.isr}x</div>
+                                        {isCustom && isSelected ? (
+                                            <div className="flex items-center gap-1 mt-1" onClick={(e) => e.stopPropagation()}>
+                                                <Input
+                                                    type="number"
+                                                    value={isr}
+                                                    onChange={(e) => setIsr(Number(e.target.value))}
+                                                    className="h-6 text-xs p-1 w-full bg-white dark:bg-slate-800"
+                                                />
+                                                <span className="text-xs text-muted-foreground">x</span>
+                                            </div>
+                                        ) : (
+                                            <div className="text-xs text-muted-foreground mt-1">{isCustom ? `${isr}x` : `${config.isr}x`}</div>
+                                        )}
                                     </div>
                                 )
                             })}
@@ -477,8 +551,61 @@ export function ConfigForm({ onRunSimulation }: ConfigFormProps) {
                         <Play className="w-4 h-4 mr-2" />
                         Run Simulation ({lifeExpectancy - retirementAge} Years)
                     </Button>
-                </form >
-            </CardContent >
+                </form>
+
+                {/* Edit Bucket Dialog */}
+                <Dialog open={editingBucketId !== null} onOpenChange={(open) => !open && setEditingBucketId(null)}>
+                    <DialogContent className="sm:max-w-[425px]">
+                        <DialogHeader>
+                            <DialogTitle>Edit Bucket Parameters</DialogTitle>
+                            <CardDescription>
+                                Override the default return and volatility for {BUCKETS.find(b => b.id === editingBucketId)?.name}.
+                            </CardDescription>
+                        </DialogHeader>
+                        <div className="grid gap-4 py-4">
+                            <div className="grid grid-cols-4 items-center gap-4">
+                                <Label htmlFor="returnRate" className="text-right">
+                                    Return
+                                </Label>
+                                <div className="col-span-3 relative">
+                                    <Input
+                                        id="returnRate"
+                                        type="number"
+                                        step="0.1"
+                                        value={tempOverride.returnRate}
+                                        onChange={(e) => setTempOverride(prev => ({ ...prev, returnRate: Number(e.target.value) }))}
+                                        className="pr-8"
+                                    />
+                                    <span className="absolute right-3 top-2.5 text-xs text-muted-foreground">%</span>
+                                </div>
+                            </div>
+                            <div className="grid grid-cols-4 items-center gap-4">
+                                <Label htmlFor="volatility" className="text-right">
+                                    Volatility
+                                </Label>
+                                <div className="col-span-3 relative">
+                                    <Input
+                                        id="volatility"
+                                        type="number"
+                                        step="0.1"
+                                        value={tempOverride.volatility}
+                                        onChange={(e) => setTempOverride(prev => ({ ...prev, volatility: Number(e.target.value) }))}
+                                        className="pr-8"
+                                    />
+                                    <span className="absolute right-3 top-2.5 text-xs text-muted-foreground">%</span>
+                                </div>
+                            </div>
+                        </div>
+                        <div className="bg-yellow-50 dark:bg-yellow-900/20 p-3 rounded-md text-xs text-yellow-800 dark:text-yellow-200 mb-4">
+                            Note: Changing these values will override the default assumptions for this bucket in the simulation.
+                        </div>
+                        <DialogFooter>
+                            <Button variant="outline" onClick={() => setEditingBucketId(null)}>Cancel</Button>
+                            <Button onClick={handleSaveOverride}>Save Changes</Button>
+                        </DialogFooter>
+                    </DialogContent>
+                </Dialog>
+            </CardContent>
         </Card >
     );
 }

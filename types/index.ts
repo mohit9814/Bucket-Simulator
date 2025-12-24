@@ -24,6 +24,7 @@ export interface SimulationParams {
   startAge?: number;
   taxEnabled?: boolean;
   isJoint?: boolean; // Joint Assessment for Tax
+  equityFreezeYears?: number;
 }
 
 export interface BucketConfig {
@@ -72,4 +73,6 @@ export interface SimulationResult {
   finalAmount: number;
   successRate: number; // Percentage of simulations that succeeded
   totalSimulations: number;
+  historyWorst?: MonthSimulation[]; // 10th percentile
+  historyBest?: MonthSimulation[]; // 90th percentile
 }

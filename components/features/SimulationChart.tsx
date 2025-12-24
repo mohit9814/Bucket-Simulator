@@ -1,16 +1,17 @@
 "use client"
 
 import { MonthSimulation } from "@/types";
-import { Area, AreaChart, CartesianGrid, ResponsiveContainer, Tooltip, XAxis, YAxis } from "recharts";
+import { Area, AreaChart, CartesianGrid, Legend, ResponsiveContainer, Tooltip, XAxis, YAxis } from "recharts";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "../ui/card";
 import { formatINR } from "@/lib/utils";
 
 interface SimulationChartProps {
     history: MonthSimulation[];
     startAge?: number;
+    title?: string;
 }
 
-export function SimulationChart({ history, startAge }: SimulationChartProps) {
+export function SimulationChart({ history, startAge, title = "Wealth Projection" }: SimulationChartProps) {
     if (!history || history.length === 0) return null;
 
     // Downsample if too many points for performance
@@ -30,7 +31,7 @@ export function SimulationChart({ history, startAge }: SimulationChartProps) {
     return (
         <Card className="glass-card w-full h-[500px]">
             <CardHeader>
-                <CardTitle>Wealth Projection</CardTitle>
+                <CardTitle>{title}</CardTitle>
                 <CardDescription>Projected portfolio value over time (Stacked by Bucket)</CardDescription>
             </CardHeader>
             <CardContent className="h-[400px]">
@@ -67,9 +68,10 @@ export function SimulationChart({ history, startAge }: SimulationChartProps) {
                             formatter={(value: any) => [formatINR(Number(value)), ""]}
                             labelFormatter={(label) => startAge ? `Age ${label}` : `Year ${label}`}
                         />
-                        <Area type="monotone" dataKey="Bucket 3" stackId="1" stroke="#8884d8" fill="#8884d8" fillOpacity={0.6} />
-                        <Area type="monotone" dataKey="Bucket 2" stackId="1" stroke="#82ca9d" fill="#82ca9d" fillOpacity={0.6} />
-                        <Area type="monotone" dataKey="Bucket 1" stackId="1" stroke="#ffc658" fill="#ffc658" fillOpacity={0.6} />
+                        <Legend verticalAlign="top" height={36} />
+                        <Area type="monotone" name="Bucket 3 (Growth)" dataKey="Bucket 3" stackId="1" stroke="#8884d8" fill="#8884d8" fillOpacity={0.6} />
+                        <Area type="monotone" name="Bucket 2 (Conservative)" dataKey="Bucket 2" stackId="1" stroke="#82ca9d" fill="#82ca9d" fillOpacity={0.6} />
+                        <Area type="monotone" name="Bucket 1 (Cash)" dataKey="Bucket 1" stackId="1" stroke="#ffc658" fill="#ffc658" fillOpacity={0.6} />
                     </AreaChart>
                 </ResponsiveContainer>
             </CardContent>

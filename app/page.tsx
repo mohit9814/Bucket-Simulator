@@ -13,6 +13,7 @@ import { useEffect, useState } from "react";
 
 import { VolatilityAnalysisModal } from "@/components/features/VolatilityAnalysisModal";
 import { ExportService } from "@/lib/export";
+import { cn } from "@/lib/utils";
 
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { ArrowLeft, Settings2, BarChart3, Table as TableIcon, FileText } from "lucide-react";
@@ -53,7 +54,8 @@ export default function Home() {
     isJoint?: boolean,
     annualRebalancing?: boolean,
     strategyType: StrategyType = 'three-bucket',
-    bucketConfigOverride?: { [key: number]: { returnRate: number, volatility: number } }
+    bucketConfigOverride?: { [key: number]: { returnRate: number, volatility: number } },
+    equityFreezeYears?: number
   ) => {
     // Mode is for display/logging mainly now, ISR is explicit
     const requiredFunds = calculateRequiredFunds(expense, isr);
@@ -74,7 +76,8 @@ export default function Home() {
       isJoint: isJoint,
       annualRebalancing: annualRebalancing,
       bucketConfigOverride: bucketConfigOverride,
-      strategyType: strategyType
+      strategyType: strategyType,
+      equityFreezeYears: equityFreezeYears
     });
 
     setResult(simResult);
@@ -123,102 +126,100 @@ export default function Home() {
         )}
       </div>
 
-      {viewMode === 'config' ? (
-        <div className="max-w-4xl mx-auto animate-in fade-in slide-in-from-bottom-8 duration-500">
-          <ConfigForm onRunSimulation={handleRunSimulation} />
+      <div className={cn("max-w-4xl mx-auto transition-opacity duration-300", viewMode === 'config' ? 'opacity-100 block' : 'opacity-0 hidden absolute inset-0 -z-10')}>
+        <ConfigForm onRunSimulation={handleRunSimulation} />
+      </div>
 
-          <div className="mt-8 p-6 rounded-xl bg-blue-50/50 border border-blue-100 text-sm text-blue-900/80 max-w-2xl mx-auto">
-            <h4 className="font-semibold mb-2 flex items-center gap-2">
-              <Settings2 className="w-4 h-4" />
-              Strategy Overview
-            </h4>
-            <ul className="grid grid-cols-1 md:grid-cols-3 gap-4 text-center">
-              <li className="bg-white/60 p-3 rounded-lg shadow-sm">
-                <div className="font-bold text-lg text-emerald-600">5%</div>
-                <div className="text-xs font-medium uppercase tracking-wider opacity-70">Cash / Income</div>
-              </li>
-              <li className="bg-white/60 p-3 rounded-lg shadow-sm">
-                <div className="font-bold text-lg text-amber-600">8%</div>
-                <div className="text-xs font-medium uppercase tracking-wider opacity-70">Conservative</div>
-              </li>
-              <li className="bg-white/60 p-3 rounded-lg shadow-sm">
-                <div className="font-bold text-lg text-indigo-600">12%</div>
-                <div className="text-xs font-medium uppercase tracking-wider opacity-70">Growth Equity</div>
-              </li>
-            </ul>
-          </div>
+      <div className={cn("space-y-6 animate-in fade-in slide-in-from-right-8 duration-500", viewMode === 'results' ? 'block' : 'hidden')}>
+        {/* Results Header */}
+        <div className="grid gap-6">
+          {result && <ResultsSummary result={result} onExport={handleExport} onAnalyze={() => setIsAnalysisOpen(true)} />}
+
+          <PlaybackControls
+            isPlaying={isPlaying}
+            speed={speed}
+            currentYear={currentYearVal}
+            totalYears={totalYearsVal}
+            onTogglePlay={togglePlay}
+            onReset={reset}
+            onSpeedChange={setSpeed}
+          />
         </div>
-      ) : (
-        <div className="space-y-6 animate-in fade-in slide-in-from-right-8 duration-500">
-          {/* Results Header */}
-          <div className="grid gap-6">
-            {result && <ResultsSummary result={result} onExport={handleExport} onAnalyze={() => setIsAnalysisOpen(true)} />}
 
-            <PlaybackControls
-              isPlaying={isPlaying}
-              speed={speed}
-              currentYear={currentYearVal}
-              totalYears={totalYearsVal}
-              onTogglePlay={togglePlay}
-              onReset={reset}
-              onSpeedChange={setSpeed}
-            />
+        {/* Tabs for Detailed Views */}
+        <Tabs defaultValue="projection" className="w-full">
+          <div className="flex justify-center mb-6">
+            <TabsList className="grid w-full max-w-md grid-cols-3">
+              <TabsTrigger value="projection" className="flex items-center gap-2">
+                <BarChart3 className="w-4 h-4" />
+                Projection
+              </TabsTrigger>
+              <TabsTrigger value="details" className="flex items-center gap-2">
+                <TableIcon className="w-4 h-4" />
+                Yearly Details
+              </TabsTrigger>
+              <TabsTrigger value="log" className="flex items-center gap-2">
+                <FileText className="w-4 h-4" />
+                Log
+              </TabsTrigger>
+            </TabsList>
           </div>
 
-          {/* Tabs for Detailed Views */}
-          <Tabs defaultValue="projection" className="w-full">
-            <div className="flex justify-center mb-6">
-              <TabsList className="grid w-full max-w-md grid-cols-3">
-                <TabsTrigger value="projection" className="flex items-center gap-2">
-                  <BarChart3 className="w-4 h-4" />
-                  Projection
-                </TabsTrigger>
-                <TabsTrigger value="details" className="flex items-center gap-2">
-                  <TableIcon className="w-4 h-4" />
-                  Yearly Details
-                </TabsTrigger>
-                <TabsTrigger value="log" className="flex items-center gap-2">
-                  <FileText className="w-4 h-4" />
-                  Log
-                </TabsTrigger>
-              </TabsList>
-            </div>
-
-            <TabsContent value="projection" className="space-y-4 animate-in fade-in duration-300">
-              <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-                <div className="lg:col-span-2 h-[600px]">
-                  {result && displayedHistory.length > 0 && (
-                    <SimulationChart history={displayedHistory} startAge={currentParams?.startAge} />
-                  )}
-                </div>
-                <div className="lg:col-span-1">
-                  <ReplenishmentLog history={displayedHistory} />
-                </div>
+          <TabsContent value="projection" className="space-y-4 animate-in fade-in duration-300">
+            <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+              <div className="lg:col-span-2 space-y-8">
+                {result && displayedHistory.length > 0 && (
+                  <>
+                    <SimulationChart
+                      history={displayedHistory}
+                      startAge={currentParams?.startAge}
+                      title="Wealth Projection - Median Scenario (Typical)"
+                    />
+                    {result.historyWorst && (
+                      <SimulationChart
+                        history={result.historyWorst}
+                        startAge={currentParams?.startAge}
+                        title="Wealth Projection - Worst Scenario (10th Percentile)"
+                      />
+                    )}
+                    {result.historyBest && (
+                      <SimulationChart
+                        history={result.historyBest}
+                        startAge={currentParams?.startAge}
+                        title="Wealth Projection - Best Scenario (90th Percentile)"
+                      />
+                    )}
+                  </>
+                )}
               </div>
-            </TabsContent>
-
-            <TabsContent value="details" className="animate-in fade-in duration-300">
-              {result && (
-                <div className="h-full">
-                  <YearlyTable history={result.history} currentMonth={currentMonth} />
-                </div>
-              )}
-            </TabsContent>
-
-            <TabsContent value="log" className="animate-in fade-in duration-300">
-              <div className="max-w-4xl mx-auto">
+              <div className="lg:col-span-1">
                 <ReplenishmentLog history={displayedHistory} />
               </div>
-            </TabsContent>
-          </Tabs>
-        </div>
-      )}
+            </div>
+          </TabsContent>
+
+          <TabsContent value="details" className="animate-in fade-in duration-300">
+            {result && (
+              <div className="h-full">
+                <YearlyTable history={result.history} currentMonth={currentMonth} />
+              </div>
+            )}
+          </TabsContent>
+
+          <TabsContent value="log" className="animate-in fade-in duration-300">
+            <div className="max-w-4xl mx-auto">
+              <ReplenishmentLog history={displayedHistory} />
+            </div>
+          </TabsContent>
+        </Tabs>
+      </div>
+
 
       <VolatilityAnalysisModal
         isOpen={isAnalysisOpen}
         onClose={() => setIsAnalysisOpen(false)}
         currentParams={currentParams}
       />
-    </main>
+    </main >
   );
 }
