@@ -10,21 +10,24 @@ import { useSimulationRunner } from "@/hooks/useSimulationRunner";
 import { calculateRequiredFunds, runSimulation } from "@/lib/simulation";
 import { FireMode, SimulationResult, StrategyType } from "@/types";
 import { useEffect, useState } from "react";
+import html2canvas from 'html2canvas';
 
 import { VolatilityAnalysisModal } from "@/components/features/VolatilityAnalysisModal";
 import { ExportService } from "@/lib/export";
 import { cn } from "@/lib/utils";
 
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { ArrowLeft, Settings2, BarChart3, Table as TableIcon, FileText } from "lucide-react";
+import { ArrowLeft, Settings2, BarChart3, Table as TableIcon, FileText, Share2, Check } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { ScenarioComparisonChart } from "@/components/features/ScenarioComparisonChart";
+import { ConfigSerializer } from "@/lib/config-serializer";
 
 export default function Home() {
   const [result, setResult] = useState<SimulationResult | null>(null);
   const [isAnalysisOpen, setIsAnalysisOpen] = useState(false);
   const [monthsToRun, setMonthsToRun] = useState(0);
   const [viewMode, setViewMode] = useState<'config' | 'results'>('config');
+  const [isCopied, setIsCopied] = useState(false);
 
   const [currentParams, setCurrentParams] = useState<{
     expense: number;
@@ -36,11 +39,37 @@ export default function Home() {
     startAge?: number;
     taxEnabled?: boolean;
     isJoint?: boolean;
+    annualRebalancing?: boolean;
+    strategyType: StrategyType;
     bucketConfigOverride?: { [key: number]: { returnRate: number, volatility: number } };
+    equityFreezeYears?: number;
   } | null>(null);
+
+  // Load config from URL on mount
+  useEffect(() => {
+    if (typeof window !== 'undefined') {
+      const searchParams = new URLSearchParams(window.location.search);
+      const configStr = searchParams.get('config');
+      if (configStr) {
+        const params = ConfigSerializer.deserialize(configStr);
+        if (params) {
+          // Auto-run
+          handleRunSimulation(
+            params.expense, params.mode, params.years, params.inflation,
+            1000, // Default sims
+            params.isr, params.bucketAllocations, params.startAge,
+            params.taxEnabled, params.isJoint, params.annualRebalancing,
+            params.strategyType, params.bucketConfigOverride, params.equityFreezeYears
+          );
+        }
+      }
+    }
+  }, []);
 
   // Hook handles the 'tick' for playback
   const { currentMonth, isPlaying, speed, setSpeed, togglePlay, reset, setProgress } = useSimulationRunner(monthsToRun);
+
+  const [activeTab, setActiveTab] = useState("projection");
 
   const handleRunSimulation = (
     expense: number,
@@ -61,7 +90,7 @@ export default function Home() {
     // Mode is for display/logging mainly now, ISR is explicit
     const requiredFunds = calculateRequiredFunds(expense, isr);
 
-    const params = { expense, mode, years, inflation, isr, bucketAllocations, startAge, taxEnabled, isJoint, annualRebalancing, bucketConfigOverride };
+    const params = { expense, mode, years, inflation, isr, bucketAllocations, startAge, taxEnabled, isJoint, annualRebalancing, bucketConfigOverride, strategyType, equityFreezeYears };
     setCurrentParams(params);
 
     // Calculate all data upfront
@@ -84,16 +113,64 @@ export default function Home() {
     setResult(simResult);
     setMonthsToRun(years * 12);
     setViewMode('results');
+    setActiveTab("projection"); // Reset to projection on new run
   };
 
-  const handleExport = (type: 'csv' | 'pdf') => {
+  const handleExport = async (type: 'csv' | 'pdf') => {
     if (!result || !currentParams) return;
 
     if (type === 'csv') {
       ExportService.downloadCSV({ result, params: currentParams });
     } else {
-      ExportService.downloadPDF({ result, params: currentParams });
+      // Capture charts
+      // Must switch to projection tab to ensure charts are rendered
+      const previousTab = activeTab;
+      if (previousTab !== 'projection') {
+        setActiveTab('projection');
+        // Wait for render
+        await new Promise(resolve => setTimeout(resolve, 500));
+      }
+
+      const charts: { [key: string]: string } = {};
+
+      try {
+        const wealthEl = document.getElementById('chart-wealth-projection');
+        if (wealthEl) {
+          const canvas = await html2canvas(wealthEl, { scale: 2 });
+          charts.wealthProjection = canvas.toDataURL('image/png');
+        }
+
+        const scenarioEl = document.getElementById('chart-scenario-comparison');
+        if (scenarioEl) {
+          const canvas = await html2canvas(scenarioEl, { scale: 2 });
+          charts.scenarioComparison = canvas.toDataURL('image/png');
+        }
+
+        const replenishEl = document.getElementById('chart-replenishment-volume');
+        if (replenishEl) {
+          const canvas = await html2canvas(replenishEl, { scale: 2 });
+          charts.replenishmentVolume = canvas.toDataURL('image/png');
+        }
+      } catch (e) {
+        console.error("Failed to capture charts", e);
+      }
+
+      // Restore tab if changed
+      if (previousTab !== 'projection') {
+        setActiveTab(previousTab);
+      }
+
+      ExportService.downloadPDF({ result, params: currentParams }, charts);
     }
+  };
+
+  const handleShare = () => {
+    if (!currentParams) return;
+    const configStr = ConfigSerializer.serialize(currentParams);
+    const url = `${window.location.origin}${window.location.pathname}?config=${configStr}`;
+    navigator.clipboard.writeText(url);
+    setIsCopied(true);
+    setTimeout(() => setIsCopied(false), 2000);
   };
 
   // Derived current state based on playback
@@ -115,26 +192,39 @@ export default function Home() {
             Visualize your wealth preservation strategy.
           </p>
         </div>
-        {viewMode === 'results' && (
-          <Button
-            variant="outline"
-            onClick={() => setViewMode('config')}
-            className="flex items-center gap-2"
-          >
-            <ArrowLeft className="w-4 h-4" />
-            Back to Config
-          </Button>
-        )}
+        <div className="flex gap-2">
+          {viewMode === 'results' && (
+            <>
+              <Button
+                variant="outline"
+                onClick={handleShare}
+                className="flex items-center gap-2"
+              >
+                {isCopied ? <Check className="w-4 h-4 text-green-500" /> : <Share2 className="w-4 h-4" />}
+                {isCopied ? "Copied!" : "Share Analysis"}
+              </Button>
+
+              <Button
+                variant="outline"
+                onClick={() => setViewMode('config')}
+                className="flex items-center gap-2"
+              >
+                <ArrowLeft className="w-4 h-4" />
+                Back to Config
+              </Button>
+            </>
+          )}
+        </div>
       </div>
 
       <div className={cn("max-w-4xl mx-auto transition-opacity duration-300", viewMode === 'config' ? 'opacity-100 block' : 'opacity-0 hidden absolute inset-0 -z-10')}>
-        <ConfigForm onRunSimulation={handleRunSimulation} />
+        <ConfigForm onRunSimulation={handleRunSimulation} initialValues={currentParams} />
       </div>
 
       <div className={cn("space-y-6 animate-in fade-in slide-in-from-right-8 duration-500", viewMode === 'results' ? 'block' : 'hidden')}>
         {/* Results Header */}
         <div className="grid gap-6">
-          {result && <ResultsSummary result={result} onExport={handleExport} onAnalyze={() => setIsAnalysisOpen(true)} />}
+          {result && <ResultsSummary result={result} onExport={handleExport} onAnalyze={() => setIsAnalysisOpen(true)} targetYears={currentParams?.years} />}
 
           <PlaybackControls
             isPlaying={isPlaying}
@@ -148,7 +238,7 @@ export default function Home() {
         </div>
 
         {/* Tabs for Detailed Views */}
-        <Tabs defaultValue="projection" className="w-full">
+        <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full">
           <div className="flex justify-center mb-6">
             <TabsList className="grid w-full max-w-md grid-cols-3">
               <TabsTrigger value="projection" className="flex items-center gap-2">
@@ -171,17 +261,21 @@ export default function Home() {
               <div className="lg:col-span-2 space-y-8">
                 {result && displayedHistory.length > 0 && (
                   <>
-                    <SimulationChart
-                      history={displayedHistory}
-                      startAge={currentParams?.startAge}
-                      title="Wealth Projection - Median Scenario (Typical)"
-                    />
+                    <div id="chart-wealth-projection">
+                      <SimulationChart
+                        history={displayedHistory}
+                        startAge={currentParams?.startAge}
+                        title="Wealth Projection - Median Scenario (Typical)"
+                      />
+                    </div>
 
                     {/* New Comparative Chart */}
-                    <ScenarioComparisonChart
-                      result={result}
-                      startAge={currentParams?.startAge || 0}
-                    />
+                    <div id="chart-scenario-comparison">
+                      <ScenarioComparisonChart
+                        result={result}
+                        startAge={currentParams?.startAge || 0}
+                      />
+                    </div>
                   </>
                 )}
               </div>

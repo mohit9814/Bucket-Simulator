@@ -113,7 +113,7 @@ export function ReplenishmentLog({ history, startAge }: ReplenishmentLogProps) {
             </div>
 
             {/* Visual Chart */}
-            <Card className="glass-card">
+            <Card className="glass-card" id="chart-replenishment-volume">
                 <CardHeader className="pb-2">
                     <CardTitle className="text-base flex items-center gap-2">
                         <Activity className="w-4 h-4 text-primary" />

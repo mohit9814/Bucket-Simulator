@@ -32,9 +32,24 @@ interface ConfigFormProps {
         bucketConfigOverride?: { [key: number]: { returnRate: number, volatility: number } },
         equityFreezeYears?: number
     ) => void;
+    initialValues?: {
+        expense: number;
+        mode: FireMode;
+        years: number;
+        inflation: number;
+        isr: number;
+        bucketAllocations: [number, number, number];
+        startAge?: number;
+        taxEnabled?: boolean;
+        isJoint?: boolean;
+        annualRebalancing?: boolean;
+        strategyType: StrategyType;
+        bucketConfigOverride?: { [key: number]: { returnRate: number, volatility: number } };
+        equityFreezeYears?: number;
+    } | null;
 }
 
-export function ConfigForm({ onRunSimulation }: ConfigFormProps) {
+export function ConfigForm({ onRunSimulation, initialValues }: ConfigFormProps) {
     const [expense, setExpense] = useState<number>(100000);
     const [mode, setMode] = useState<FireMode>("Custom");
     const [currentAge, setCurrentAge] = useState<number>(44);
@@ -57,8 +72,37 @@ export function ConfigForm({ onRunSimulation }: ConfigFormProps) {
 
     const [requiredCorpus, setRequiredCorpus] = useState<number>(0);
 
+    // Sync state with initialValues if provided (e.g. from Share URL)
+    useEffect(() => {
+        if (initialValues) {
+            setExpense(initialValues.expense);
+            setMode(initialValues.mode);
+            setInflation(initialValues.inflation);
+            setIsr(initialValues.isr);
+            setBucketAllocations(initialValues.bucketAllocations);
+            setTaxEnabled(initialValues.taxEnabled ?? true);
+            setIsJoint(initialValues.isJoint ?? true);
+            setAnnualRebalancing(initialValues.annualRebalancing ?? false);
+            setStrategyType(initialValues.strategyType);
+            setEquityFreezeYears(initialValues.equityFreezeYears ?? 10);
+            if (initialValues.bucketConfigOverride) {
+                setBucketOverrides(initialValues.bucketConfigOverride);
+            }
+
+            if (initialValues.startAge) {
+                setRetirementAge(initialValues.startAge);
+                // We derive life expectancy from years + startAge
+                setLifeExpectancy(initialValues.startAge + initialValues.years);
+            }
+        }
+    }, [initialValues]);
+
     // Sync ISR on Mode Change (uni-directional)
     useEffect(() => {
+        // Only override ISR if mode changed by USER interaction (checking if it matches current ISR can avoid loops, 
+        // but here we just check if mode is custom. 
+        // If initialValues sets 'Custom' and a specific ISR, this effect might overwrite it if we aren't careful.
+        // However, standard modes have fixed ISRs. Custom mode doesn't trigger this.)
         if (mode !== 'Custom') {
             setIsr(FIRE_MODES[mode].isr);
         }

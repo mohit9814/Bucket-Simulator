@@ -12,12 +12,14 @@ interface ResultsSummaryProps {
     result: SimulationResult;
     onExport?: (type: 'csv' | 'pdf') => void;
     onAnalyze?: () => void;
+    targetYears?: number;
 }
 
-export function ResultsSummary({ result, onExport, onAnalyze }: ResultsSummaryProps) {
-    const yearsLasted = (result.monthsLasted / 12).toFixed(1);
+export function ResultsSummary({ result, onExport, onAnalyze, targetYears = 30 }: ResultsSummaryProps) {
+    const yearsLasted = (result.monthsLasted / 12);
     const isSuccess = result.isSuccess;
     const successRate = result.successRate !== undefined ? result.successRate.toFixed(1) : (isSuccess ? "100" : "0");
+    const targetMet = yearsLasted >= targetYears;
 
     return (
         <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-6">
@@ -53,14 +55,14 @@ export function ResultsSummary({ result, onExport, onAnalyze }: ResultsSummaryPr
                 </CardContent>
             </Card>
 
-            <Card>
+            <Card className={targetMet ? "bg-green-50/50 border-green-200" : ""}>
                 <CardHeader className="pb-2">
                     <CardTitle className="text-sm font-medium text-muted-foreground">Duration Lasted</CardTitle>
                 </CardHeader>
                 <CardContent>
-                    <div className="text-2xl font-bold">{yearsLasted} Years</div>
+                    <div className="text-2xl font-bold">{yearsLasted.toFixed(1)} Years</div>
                     <p className="text-xs text-muted-foreground mt-1">
-                        Out of 30 year target
+                        Out of {targetYears} year target
                     </p>
                 </CardContent>
             </Card>

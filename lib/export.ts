@@ -14,7 +14,9 @@ interface ReportData {
         inflation: number;
         isr: number;
         bucketAllocations: [number, number, number];
+
         startAge?: number;
+        bucketConfigOverride?: { [key: number]: { returnRate: number, volatility: number } };
     };
 }
 
@@ -36,15 +38,9 @@ export const ExportService = {
             ["Final Corpus", result.finalAmount]
         ];
 
-        // 2. History Sheet
         // 2. History Sheet (Monthly Data)
         const history = result.history.map(row => {
             // Helper to calc approx %
-            // B3: End = Start + Ret - Push. Start = End - Ret + Push.
-            // B2: End = Start + Ret - Push. Start = End - Ret + Push.
-            // B1: End = Start + Ret - Push. Start = End - Ret + Push.
-            // Note: Start includes incoming pushes for B1/B2.
-
             const startB3 = row.bucket3 - row.returnAmountB3 + row.pushToB2; // Skim from B3 is pushToB2
             const startB2 = row.bucket2 - row.returnAmountB2 + row.pushToB1; // Skim from B2 is pushToB1
             const startB1 = row.bucket1 - row.returnAmountB1; // Recycled to B1 (none)
@@ -91,50 +87,129 @@ export const ExportService = {
         XLSX.utils.book_append_sheet(wb, wsSummary, "Summary");
         XLSX.utils.book_append_sheet(wb, wsHistory, "Monthly Detail");
 
+        // Scenario Analysis Sheet
+        if (result.historyWorst && result.historyBest) {
+            const getFinalFor = (h: any[]) => h.length > 0 ? h[h.length - 1].totalFunds : 0;
+            const scenarios = [
+                ["Scenario", "Final Corpus (Projected)"],
+                ["Worst Case (10th Percentile)", getFinalFor(result.historyWorst)],
+                ["25th Percentile", getFinalFor(result.historyP25!)],
+                ["Median (50th Percentile)", result.finalAmount],
+                ["75th Percentile", getFinalFor(result.historyP75!)],
+                ["Best Case (90th Percentile)", getFinalFor(result.historyBest)]
+            ];
+            const wsScenarios = XLSX.utils.aoa_to_sheet(scenarios);
+            XLSX.utils.book_append_sheet(wb, wsScenarios, "Scenario Analysis");
+
+            // Scenario Details (Yearly)
+            const scenarioDetails = result.history
+                .map((_, i) => {
+                    if (i % 12 !== 0) return null;
+                    const year = Math.floor(i / 12) + 1;
+                    const idx = i;
+
+                    const getVal = (h: any[]) => h && h[idx] ? h[idx].totalFunds : 0;
+
+                    return {
+                        Year: year,
+                        Age: startAge ? startAge + year - 1 : '-',
+                        "Worst (10th)": getVal(result.historyWorst!),
+                        "25th": getVal(result.historyP25!),
+                        "Median": result.history[idx].totalFunds,
+                        "75th": getVal(result.historyP75!),
+                        "Best (90th)": getVal(result.historyBest!)
+                    };
+                })
+                .filter(Boolean); // Remove nulls
+
+            const wsScenarioDetails = XLSX.utils.json_to_sheet(scenarioDetails);
+            XLSX.utils.book_append_sheet(wb, wsScenarioDetails, "Scenario Details");
+        }
+
         XLSX.writeFile(wb, "Bucket_Simulator_Report.xlsx");
     },
 
-    downloadPDF: (data: ReportData) => {
+    downloadPDF: (data: ReportData, charts?: { [key: string]: string }) => {
         const { result, params } = data;
         const startAge = params.startAge;
         const doc = new jsPDF();
 
-        // Header
+        // 1. Header
         doc.setFontSize(22);
         doc.setTextColor(40, 116, 240); // Blue
         doc.text("Bucket Simulator Report", 14, 20);
 
-        doc.setFontSize(12);
+        doc.setFontSize(10);
         doc.setTextColor(100);
-        doc.text(`Generated on ${new Date().toLocaleDateString()}`, 14, 30);
+        doc.text(`Generated on ${new Date().toLocaleDateString()} ${new Date().toLocaleTimeString()}`, 14, 28);
 
-        // Summary Table
+        let currentY = 35;
+
+        // 2. Simulation Parameters
         doc.setFontSize(14);
         doc.setTextColor(0);
-        doc.text("Simulation Parameters", 14, 45);
+        doc.text("Simulation Parameters", 14, currentY);
+        currentY += 5;
 
         autoTable(doc, {
-            startY: 50,
-            head: [['Parameter', 'Value']],
+            startY: currentY,
+            head: [['Parameter', 'Value', 'Parameter', 'Value']],
             body: [
-                ['Monthly Expense', formatINR(params.expense)],
-                ['Inflation', `${params.inflation}%`],
-                ['Target Duration', `${params.years} Years`],
-                ['Strategy', params.mode === 'Custom' ? 'Custom' : `${params.mode} FIRE`],
-                ['ISR', `${params.isr}x`],
-                ['Allocation', `${params.bucketAllocations.map(a => Math.round(a * 100)).join('/')}`]
+                ['Monthly Expense', formatINR(params.expense), 'Inflation', `${params.inflation}%`],
+                ['Target Duration', `${params.years} Years`, 'ISR', `${params.isr}x`],
+                ['Strategy', params.mode === 'Custom' ? 'Custom' : `${params.mode} FIRE`, 'Start Age', startAge ? `${startAge}` : '-'],
+                ['Bucket Allocation', `${params.bucketAllocations.map(a => Math.round(a * 100)).join('/')}`, 'Rebalancing', params.mode === 'Custom' ? 'Annual' : '-']
             ],
             theme: 'striped',
-            headStyles: { fillColor: [40, 116, 240] }
+            headStyles: { fillColor: [40, 116, 240] },
+            styles: { fontSize: 10, cellPadding: 3 }
         });
 
-        // Results
         // @ts-ignore
-        const finalY = doc.lastAutoTable.finalY + 15;
-        doc.text("Projected Outcome", 14, finalY);
+        currentY = doc.lastAutoTable.finalY + 10;
+
+        // 2b. Detailed Bucket Config (if custom)
+        if (params.bucketConfigOverride) {
+            const buckets = [
+                { id: 1, name: "Bucket 1 (Cash)" },
+                { id: 2, name: "Bucket 2 (Conservative)" },
+                { id: 3, name: "Bucket 3 (Growth)" }
+            ];
+
+            const overrides = params.bucketConfigOverride;
+            const configRows = buckets.map(b => {
+                const ov = overrides[b.id];
+                // Default vals (should technically come from constant but we put defaults or 'Default' text)
+                const ret = ov ? `${(ov.returnRate * 100).toFixed(1)}%` : 'Default';
+                const vol = ov ? `${(ov.volatility * 100).toFixed(1)}%` : 'Default';
+                return [b.name, ret, vol];
+            });
+
+            // Show table only if at least one override exists? Or always?
+            // Since the user asked for it, let's show it if variable is present
+            doc.setFontSize(12);
+            doc.text("Detailed Bucket Assumptions", 14, currentY);
+            currentY += 5;
+
+            autoTable(doc, {
+                startY: currentY,
+                head: [['Bucket', 'Return Rate', 'Volatility']],
+                body: configRows,
+                theme: 'striped',
+                headStyles: { fillColor: [100, 100, 100] },
+                styles: { fontSize: 9 }
+            });
+            // @ts-ignore
+            currentY = doc.lastAutoTable.finalY + 10;
+        }
+
+        // 3. Projected Outcome
+        doc.setFontSize(14);
+        doc.text("Projected Outcome (Median Scenario)", 14, currentY);
+        currentY += 5;
 
         autoTable(doc, {
-            startY: finalY + 5,
+            startY: currentY,
             head: [['Metric', 'Result']],
             body: [
                 ['Success Probability', `${result.successRate.toFixed(1)}%`],
@@ -145,14 +220,42 @@ export const ExportService = {
             headStyles: { fillColor: [22, 163, 74] } // Green
         });
 
-        // Yearly History (Sample)
         // @ts-ignore
-        const historyY = doc.lastAutoTable.finalY + 15;
-        doc.text("Yearly Projection (First 20 Years)", 14, historyY);
+        currentY = doc.lastAutoTable.finalY + 15;
+
+        // 4. Scenario Analysis
+        if (result.historyWorst && result.historyBest) {
+            doc.setFontSize(14);
+            doc.text("Scenario Analysis (Wealth Projection)", 14, currentY);
+            currentY += 5;
+
+            const getFinalFor = (h: any[]) => h.length > 0 ? h[h.length - 1].totalFunds : 0;
+            const survived = (h: any[]) => h.length >= params.years * 12 ? 'Survived' : 'Depleted';
+
+            autoTable(doc, {
+                startY: currentY,
+                head: [['Scenario', 'Percentile', 'Final Corpus', 'Outcome']],
+                body: [
+                    ['Worst Case', '10th', formatINR(getFinalFor(result.historyWorst)), survived(result.historyWorst)],
+                    ['Below Average', '25th', formatINR(getFinalFor(result.historyP25!)), survived(result.historyP25!)],
+                    ['Median', '50th', formatINR(result.finalAmount), 'Survived'],
+                    ['Above Average', '75th', formatINR(getFinalFor(result.historyP75!)), 'Survived'],
+                    ['Best Case', '90th', formatINR(getFinalFor(result.historyBest)), 'Survived']
+                ],
+                theme: 'striped',
+                headStyles: { fillColor: [234, 88, 12] } // Orange
+            });
+            // @ts-ignore
+            currentY = doc.lastAutoTable.finalY + 15;
+        }
+
+        // 5. Yearly Projection (Full Table)
+        doc.addPage();
+        doc.setFontSize(14);
+        doc.text("Yearly Detailed Projection (Median)", 14, 20);
 
         const historyRows = result.history
             .filter((_, i) => i % 12 === 0) // Yearly only
-            .slice(0, 20)
             .map(row => {
                 const yearIndex = Math.floor(row.month / 12);
                 const ageVal = startAge ? startAge + yearIndex : '-';
@@ -163,17 +266,71 @@ export const ExportService = {
                     formatINR(row.bucket1),
                     formatINR(row.bucket2),
                     formatINR(row.bucket3),
-                    formatINR(row.withdrawalB1 + row.withdrawalB2 + row.withdrawalB3)
+                    formatINR(row.withdrawalB1 + row.withdrawalB2 + row.withdrawalB3),
+                    formatINR(row.totalFunds)
                 ]
             });
 
         autoTable(doc, {
-            startY: historyY + 5,
-            head: [['Age', 'Year', 'B1 Bal', 'B2 Bal', 'B3 Bal', 'Withdrawn (Mo)']],
+            startY: 25,
+            head: [['Age', 'Year', 'B1 Bal', 'B2 Bal', 'B3 Bal', 'Withdrawn', 'Total Wealth']],
             body: historyRows,
             theme: 'striped',
-            styles: { fontSize: 8 }, // Reduce font size to fit
-            headStyles: { fontSize: 8 }
+            styles: { fontSize: 9 },
+            headStyles: { fontSize: 9, fillColor: [75, 85, 99] }
+        });
+
+        // 6. Charts
+        if (charts) {
+            let chartY = 20;
+            // Add new page for charts
+            doc.addPage();
+            doc.setFontSize(16);
+            doc.text("Visual Analytics", 14, chartY);
+            chartY += 10;
+
+            if (charts.wealthProjection) {
+                doc.setFontSize(12);
+                doc.text("Wealth Projection", 14, chartY);
+                doc.addImage(charts.wealthProjection, 'PNG', 15, chartY + 5, 180, 100);
+                chartY += 115;
+            }
+            if (charts.scenarioComparison) {
+                if (chartY > 200) { doc.addPage(); chartY = 20; }
+                doc.setFontSize(12);
+                doc.text("Scenario Comparison", 14, chartY);
+                doc.addImage(charts.scenarioComparison, 'PNG', 15, chartY + 5, 180, 100);
+                chartY += 115;
+            }
+            if (charts.replenishmentVolume) {
+                if (chartY > 200) { doc.addPage(); chartY = 20; }
+                doc.setFontSize(12);
+                doc.text("Replenishment Volume", 14, chartY);
+                doc.addImage(charts.replenishmentVolume, 'PNG', 15, chartY + 5, 180, 100);
+            }
+        }
+
+        // 7. Activity Log (Critical Events)
+        doc.addPage();
+        doc.setFontSize(14);
+        doc.text("Major Activity Log", 14, 20);
+
+        const logsData = result.history
+            .filter(h => h.ruleLog && h.ruleLog.length > 0)
+            .map(h => {
+                const year = Math.ceil(h.month / 12);
+                const age = startAge ? startAge + year - 1 : '-';
+                return [age, year, h.ruleLog || ''];
+            });
+
+        autoTable(doc, {
+            startY: 25,
+            head: [['Age', 'Year', 'Event / Activity']],
+            body: logsData.length > 0 ? logsData : [['-', '-', 'No major events recorded.']],
+            theme: 'grid',
+            styles: { fontSize: 10 },
+            columnStyles: { 2: { cellWidth: 'auto' } }, // Events column wider
+            headStyles: { fillColor: [50, 50, 50] }
         });
 
         doc.save("Bucket_Simulator_Report.pdf");
