@@ -44,7 +44,7 @@ export function ScenarioComparisonChart({ result, startAge }: ScenarioComparison
     });
 
     return (
-        <Card className="glass-card w-full h-[500px]">
+        <Card className="glass-card w-full h-[300px] md:h-[500px]">
             <CardHeader>
                 <CardTitle>Scenario Comparison Analysis</CardTitle>
                 <CardDescription>
@@ -52,7 +52,7 @@ export function ScenarioComparisonChart({ result, startAge }: ScenarioComparison
                     Shows the range of possible outcomes from Worst Case (10th percentile) to Best Case (90th percentile).
                 </CardDescription>
             </CardHeader>
-            <CardContent className="h-[400px]">
+            <CardContent className="h-[200px] md:h-[400px]">
                 <ResponsiveContainer width="100%" height="100%">
                     <LineChart
                         data={data}

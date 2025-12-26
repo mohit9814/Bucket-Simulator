@@ -29,12 +29,12 @@ export function SimulationChart({ history, startAge, title = "Wealth Projection"
     });
 
     return (
-        <Card className="glass-card w-full h-[500px]">
+        <Card className="glass-card w-full h-[300px] md:h-[500px]">
             <CardHeader>
                 <CardTitle>{title}</CardTitle>
                 <CardDescription>Projected portfolio value over time (Stacked by Bucket)</CardDescription>
             </CardHeader>
-            <CardContent className="h-[400px]">
+            <CardContent className="h-[200px] md:h-[400px]">
                 <ResponsiveContainer width="100%" height="100%">
                     <AreaChart
                         data={data}

@@ -169,7 +169,7 @@ export function YearlyTable({ history, currentMonth, startAge }: YearlyTableProp
                 </div>
 
                 {/* Legend */}
-                <div className="flex flex-wrap gap-3 text-[10px] text-muted-foreground bg-muted/30 p-2 rounded-md border border-border/50">
+                <div className="flex flex-wrap gap-2 text-[10px] text-muted-foreground bg-muted/30 p-2 rounded-md border border-border/50 hidden md:flex">
                     <div className="flex items-center gap-1">
                         <Info className="w-3 h-3" />
                         <span className="font-semibold">Legend:</span>
@@ -192,7 +192,15 @@ export function YearlyTable({ history, currentMonth, startAge }: YearlyTableProp
             <CardContent className="flex-1 overflow-auto p-0 scrollbar-hide">
                 <div className="w-full">
                     <table className="w-full text-xs text-left border-collapse table-fixed">
-                        <colgroup>
+                        {/* Mobile ColGroup */}
+                        <colgroup className="md:hidden">
+                            <col className="w-[15%]" />
+                            <col className="w-[10%]" />
+                            <col className="w-[40%]" />
+                            <col className="w-[35%]" />
+                        </colgroup>
+                        {/* Desktop ColGroup */}
+                        <colgroup className="hidden md:table-column-group">
                             <col className="w-10" />
                             <col className="w-8" />
                             <col className="w-[12%]" />
@@ -209,23 +217,29 @@ export function YearlyTable({ history, currentMonth, startAge }: YearlyTableProp
                         <thead className="sticky top-0 bg-secondary/90 backdrop-blur z-10 text-muted-foreground font-semibold">
                             <tr>
                                 <th className="p-1 pl-2 sticky left-0 bg-secondary/90 z-20" title="Age">Age</th>
-                                <th className="p-1 sticky left-[40px] bg-secondary/90 z-20 border-r border-border/50" title="Simulation Year">Yr</th>
+                                <th className="p-1 text-center sticky left-[40px] md:static bg-secondary/90 z-20 md:border-r border-border/50" title="Year">Yr</th>
 
-                                <th className="p-1 text-right border-l border-border/50" title="Bucket 1 Ending Balance">B1 Bal</th>
-                                <th className="p-1 text-right" title="Return Amount (+/-)">Ret</th>
-                                <th className="p-1 text-right text-amber-600/90" title="Withdrawal Amount">Out</th>
+                                {/* Mobile Only Columns */}
+                                <th className="p-1 text-right md:hidden" title="Total Balance">Total Bal</th>
+                                <th className="p-1 text-right md:hidden text-amber-600/90" title="Total Withdrawal">Withdrawn</th>
 
-                                <th className="p-1 text-center text-emerald-600/90" title="Transfer: Money moved FROM Bucket 2 TO Bucket 1">Tr</th>
 
-                                <th className="p-1 text-right border-l border-border/50" title="Bucket 2 Ending Balance">B2 Bal</th>
-                                <th className="p-1 text-right" title="Return Amount (+/-)">Ret</th>
+                                {/* Desktop Only Columns */}
+                                <th className="hidden md:table-cell p-1 text-right border-l border-border/50" title="Bucket 1 Ending Balance">B1 Bal</th>
+                                <th className="hidden md:table-cell p-1 text-right" title="Return Amount (+/-)">Ret</th>
+                                <th className="hidden md:table-cell p-1 text-right text-amber-600/90" title="Withdrawal Amount">Out</th>
 
-                                <th className="p-1 text-center text-emerald-600/90" title="Transfer: Money moved FROM Bucket 3 TO Bucket 2">Tr</th>
+                                <th className="hidden md:table-cell p-1 text-center text-emerald-600/90" title="Transfer: Money moved FROM Bucket 2 TO Bucket 1">Tr</th>
 
-                                <th className="p-1 text-right border-l border-border/50" title="Bucket 3 Ending Balance">B3 Bal</th>
-                                <th className="p-1 text-right" title="Return Amount (+/-)">Ret</th>
+                                <th className="hidden md:table-cell p-1 text-right border-l border-border/50" title="Bucket 2 Ending Balance">B2 Bal</th>
+                                <th className="hidden md:table-cell p-1 text-right" title="Return Amount (+/-)">Ret</th>
 
-                                <th className="p-1 text-right border-l border-border/50 text-red-600/90" title="Tax Paid on Withdrawals/Gains">Tax</th>
+                                <th className="hidden md:table-cell p-1 text-center text-emerald-600/90" title="Transfer: Money moved FROM Bucket 3 TO Bucket 2">Tr</th>
+
+                                <th className="hidden md:table-cell p-1 text-right border-l border-border/50" title="Bucket 3 Ending Balance">B3 Bal</th>
+                                <th className="hidden md:table-cell p-1 text-right" title="Return Amount (+/-)">Ret</th>
+
+                                <th className="hidden md:table-cell p-1 text-right border-l border-border/50 text-red-600/90" title="Tax Paid on Withdrawals/Gains">Tax</th>
                             </tr>
                         </thead>
                         <tbody className="divide-y relative">
@@ -239,31 +253,44 @@ export function YearlyTable({ history, currentMonth, startAge }: YearlyTableProp
                                 // B3: Capital = End - Ret + SkimToB2 (Post-return outflow)
                                 const pctB3 = calcRate(row.returnAmountB3, row.endB3 - row.returnAmountB3 + row.totalPushToB2);
 
+                                const totalBal = row.endB1 + row.endB2 + row.endB3;
+                                const totalW = row.wB1 + row.wB2 + row.wB3;
+
                                 return (
                                     <tr key={row.year} className="hover:bg-muted/30 group transition-colors odd:bg-background even:bg-secondary/10">
                                         <td className="p-1 pl-2 font-medium sticky left-0 bg-background group-hover:bg-muted/30 transition-colors">
                                             {startAge ? startAge + row.year : '-'}
                                         </td>
-                                        <td className="p-1 font-medium sticky left-[40px] bg-background group-hover:bg-muted/30 transition-colors border-r border-border/50">
+                                        <td className="p-1 text-center font-medium sticky left-[40px] md:static bg-background group-hover:bg-muted/30 transition-colors md:border-r border-border/50">
                                             {row.year + 1}
                                         </td>
 
+                                        {/* Mobile Only: Total Bal & Withdrawal */}
+                                        <td className="p-1 text-right font-mono font-bold md:hidden">
+                                            {formatINR(totalBal)}
+                                        </td>
+                                        <td className="p-1 text-right font-mono text-amber-700 md:hidden">
+                                            {formatINR(totalW)}
+                                        </td>
+
+                                        {/* Desktop Only: Bucket Details */}
+
                                         {/* Bucket 1 */}
-                                        <td className="p-1 text-right font-mono text-muted-foreground border-l border-border/50 whitespace-nowrap">
+                                        <td className="hidden md:table-cell p-1 text-right font-mono text-muted-foreground border-l border-border/50 whitespace-nowrap">
                                             {formatINR(row.endB1)}
                                         </td>
-                                        <td className={cn("p-1 text-right font-mono whitespace-nowrap", getReturnColor(row.returnAmountB1))}>
+                                        <td className={cn("hidden md:table-cell p-1 text-right font-mono whitespace-nowrap", getReturnColor(row.returnAmountB1))}>
                                             <div>{formatINR(row.returnAmountB1)}</div>
                                             <div className="text-[10px] opacity-70">
                                                 {row.returnAmountB1 > 0 ? "+" : ""}{pctB1.toFixed(1)}%
                                             </div>
                                         </td>
-                                        <td className="p-1 text-right font-mono text-amber-700/80 whitespace-nowrap">
+                                        <td className="hidden md:table-cell p-1 text-right font-mono text-amber-700/80 whitespace-nowrap">
                                             {formatINR(row.wB1)}
                                         </td>
 
                                         {/* Transfer B2 -> B1 */}
-                                        <td className="p-1 text-center border-l border-border/30">
+                                        <td className="hidden md:table-cell p-1 text-center border-l border-border/30">
                                             {row.totalPushToB1 > 100 ? (
                                                 <div className="flex flex-col items-center justify-center">
                                                     <div className="text-[10px] text-emerald-600 font-semibold flex items-center">
@@ -277,7 +304,7 @@ export function YearlyTable({ history, currentMonth, startAge }: YearlyTableProp
                                         </td>
 
                                         {/* Bucket 2 */}
-                                        <td className="p-1 text-right font-mono text-muted-foreground border-l border-border/50 whitespace-nowrap">
+                                        <td className="hidden md:table-cell p-1 text-right font-mono text-muted-foreground border-l border-border/50 whitespace-nowrap">
                                             {formatINR(row.endB2)}
                                             {row.wB2 > 100 && (
                                                 <div className="text-[10px] text-red-500 flex justify-end items-center" title="Direct Withdrawal">
@@ -286,7 +313,7 @@ export function YearlyTable({ history, currentMonth, startAge }: YearlyTableProp
                                                 </div>
                                             )}
                                         </td>
-                                        <td className={cn("p-1 text-right font-mono whitespace-nowrap", getReturnColor(row.returnAmountB2))}>
+                                        <td className={cn("hidden md:table-cell p-1 text-right font-mono whitespace-nowrap", getReturnColor(row.returnAmountB2))}>
                                             <div>{formatINR(row.returnAmountB2)}</div>
                                             <div className="text-[10px] opacity-70">
                                                 {row.returnAmountB2 > 0 ? "+" : ""}{pctB2.toFixed(1)}%
@@ -294,7 +321,7 @@ export function YearlyTable({ history, currentMonth, startAge }: YearlyTableProp
                                         </td>
 
                                         {/* Transfer B3 -> B2 */}
-                                        <td className="p-1 text-center border-l border-border/30">
+                                        <td className="hidden md:table-cell p-1 text-center border-l border-border/30">
                                             {row.totalPushToB2 > 100 ? (
                                                 <div className="flex flex-col items-center justify-center">
                                                     <div className="text-[10px] text-emerald-600 font-semibold flex items-center">
@@ -308,7 +335,7 @@ export function YearlyTable({ history, currentMonth, startAge }: YearlyTableProp
                                         </td>
 
                                         {/* Bucket 3 */}
-                                        <td className="p-1 text-right font-mono text-muted-foreground border-l border-border/50 whitespace-nowrap">
+                                        <td className="hidden md:table-cell p-1 text-right font-mono text-muted-foreground border-l border-border/50 whitespace-nowrap">
                                             {formatINR(row.endB3)}
                                             {row.wB3 > 100 && (
                                                 <div className="text-[10px] text-red-500 flex justify-end items-center" title="Direct Withdrawal">
@@ -317,7 +344,7 @@ export function YearlyTable({ history, currentMonth, startAge }: YearlyTableProp
                                                 </div>
                                             )}
                                         </td>
-                                        <td className={cn("p-1 text-right font-mono whitespace-nowrap", getReturnColor(row.returnAmountB3))}>
+                                        <td className={cn("hidden md:table-cell p-1 text-right font-mono whitespace-nowrap", getReturnColor(row.returnAmountB3))}>
                                             <div>{formatINR(row.returnAmountB3)}</div>
                                             <div className="text-[10px] opacity-70">
                                                 {row.returnAmountB3 > 0 ? "+" : ""}{pctB3.toFixed(1)}%
@@ -325,7 +352,7 @@ export function YearlyTable({ history, currentMonth, startAge }: YearlyTableProp
                                         </td>
 
                                         {/* Tax */}
-                                        <td className="p-1 text-right font-mono text-red-600/70 border-l border-border/50 font-semibold text-[10px] whitespace-nowrap">
+                                        <td className="hidden md:table-cell p-1 text-right font-mono text-red-600/70 border-l border-border/50 font-semibold text-[10px] whitespace-nowrap">
                                             {row.tax > 0 ? formatINR(row.tax) : '-'}
                                         </td>
                                     </tr>
