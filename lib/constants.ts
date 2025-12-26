@@ -18,15 +18,15 @@ export const BUCKETS: BucketConfig[] = [
     {
         id: 2,
         name: "Low Volatility",
-        returnRate: 0.08,
-        volatility: 0.02,
+        returnRate: 0.09,
+        volatility: 0.05,
         allocation: 0.3333,
     },
     {
         id: 3,
         name: "Growth/Equity",
-        returnRate: 0.12,
-        volatility: 0.15,
+        returnRate: 0.13,
+        volatility: 0.14,
         allocation: 0.3333,
     },
 ];
