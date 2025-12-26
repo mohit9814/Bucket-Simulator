@@ -59,7 +59,7 @@ export function ConfigForm({ onRunSimulation, initialValues }: ConfigFormProps) 
     const [numSimulations, setNumSimulations] = useState<number>(1000);
 
     // Advanced / Custom Params
-    const [isr, setIsr] = useState<number>(40);
+    const [isr, setIsr] = useState<number>(37);
     const [bucketAllocations, setBucketAllocations] = useState<[number, number, number]>([0.15, 0.50, 0.35]);
     const [bucketOverrides, setBucketOverrides] = useState<{ [key: number]: { returnRate: number, volatility: number } } | undefined>(undefined);
 
